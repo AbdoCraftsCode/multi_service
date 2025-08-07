@@ -23,7 +23,7 @@ import evaluateModel from "../../../DB/models/evaluate.model.js";
 dotenv.config();
 
 
-const AUTHENTICA_API_KEY = process.env.AUTHENTICA_API_KEY || "$2y$10$ZHtIfchtuqASIn1YiPG5w.X6UFuzsOegpt6APriTklUBoZteB.dJe";
+const AUTHENTICA_API_KEY = process.env.AUTHENTICA_API_KEY || "$2y$10$q3BAdOAyWapl3B9YtEVXK.DHmJf/yaOqF4U.MpbBmR8bwjSxm4A6W";
 const AUTHENTICA_OTP_URL = "https://api.authentica.sa/api/v1/send-otp";
 
 export async function sendOTP(phone) {
@@ -58,45 +58,190 @@ export async function sendOTP(phone) {
 
 
 export const signup = asyncHandelr(async (req, res, next) => {
-    const { username,   password, mobileNumber,  } = req.body;
+    const { fullName, password, email, phone } = req.body;
 
-  
+    // ✅ تحقق من وجود واحد من الاتنين فقط
+    if (!email && !phone) {
+        return next(new Error("يجب إدخال البريد الإلكتروني أو رقم الهاتف", { cause: 400 }));
+    }
+
+    // ✅ تحقق من عدم تكرار الإيميل أو رقم الهاتف
     const checkuser = await dbservice.findOne({
         model: Usermodel,
         filter: {
-            $or: [{ username }, { mobileNumber }]  
+            $or: [
+                ...(email ? [{ email }] : []),
+                ...(phone ? [{ phone }] : [])
+            ]
         }
     });
 
     if (checkuser) {
-        if (checkuser.username === username) {
-            return next(new Error("username already exists", { cause: 400 }));
+        if (checkuser.email === email) {
+            return next(new Error("البريد الإلكتروني مستخدم من قبل", { cause: 400 }));
         }
-        if (checkuser.mobileNumber === mobileNumber) {
-            return next(new Error("Phone number already exists", { cause: 400 }));
+        if (checkuser.phone === phone) {
+            return next(new Error("رقم الهاتف مستخدم من قبل", { cause: 400 }));
         }
     }
 
     // ✅ تشفير كلمة المرور
     const hashpassword = await generatehash({ planText: password });
 
-    // ✅ إنشاء المستخدم الجديد
+    // ✅ إنشاء المستخدم
     const user = await dbservice.create({
         model: Usermodel,
-        data: {  username, password: hashpassword,  mobileNumber,  }
+        data: {
+            fullName,
+            password: hashpassword,
+            email,
+            phone,
+            accountType: 'User',  // 👈 تحديد إنه مستخدم عادي
+        }
     });
 
     // ✅ إرسال OTP
     try {
-        await sendOTP(mobileNumber);
-        console.log(`📩 OTP تم إرساله إلى ${mobileNumber}`);
+        if (phone) {
+            await sendOTP(phone);
+            console.log(`📩 OTP تم إرساله إلى الهاتف: ${phone}`);
+        } else if (email) {
+            Emailevent.emit("confirmemail", { email });
+            console.log(`📩 OTP تم إرساله إلى البريد: ${email}`);
+        }
     } catch (error) {
         console.error("❌ فشل في إرسال OTP:", error.message);
+        return next(new Error("فشل في إرسال رمز التحقق", { cause: 500 }));
     }
 
-    
-    return successresponse(res, "User created successfully, OTP sent!", 201);
+    return successresponse(res, "تم إنشاء الحساب بنجاح، وتم إرسال رمز التحقق", 201);
 });
+
+
+export const signupServiceProvider = asyncHandelr(async (req, res, next) => {
+    const {
+        fullName,
+        password,
+        email,
+        phone,
+        serviceType,
+    } = req.body;
+
+    // ✅ تحقق من وجود واحد من الاتنين فقط
+    if (!email && !phone) {
+        return next(new Error("يجب إدخال البريد الإلكتروني أو رقم الهاتف", { cause: 400 }));
+    }
+
+    // ✅ تحقق من وجود نوع الخدمة
+    if (!serviceType || !['Driver', 'Doctor', 'Host', 'Delivery'].includes(serviceType)) {
+        return next(new Error("نوع الخدمة غير صحيح أو مفقود", { cause: 400 }));
+    }
+
+    // ✅ تحقق من عدم تكرار الإيميل أو رقم الهاتف
+    const checkuser = await dbservice.findOne({
+        model: Usermodel,
+        filter: {
+            $or: [
+                ...(email ? [{ email }] : []),
+                ...(phone ? [{ phone }] : [])
+            ]
+        }
+    });
+
+    if (checkuser) {
+        if (checkuser.email === email) {
+            return next(new Error("البريد الإلكتروني مستخدم من قبل", { cause: 400 }));
+        }
+        if (checkuser.phone === phone) {
+            return next(new Error("رقم الهاتف مستخدم من قبل", { cause: 400 }));
+        }
+    }
+
+    // ✅ تشفير كلمة المرور
+    const hashpassword = await generatehash({ planText: password });
+
+    // ✅ رفع الملفات (من req.files)
+    const uploadedFiles = {};
+
+    const uploadToCloud = async (file, folder) => {
+        const isPDF = file.mimetype === "application/pdf";
+
+        const uploaded = await cloud.uploader.upload(file.path, {
+            folder,
+            resource_type: isPDF ? "raw" : "auto" // ← أهم نقطة هنا
+        });
+
+        return {
+            secure_url: uploaded.secure_url,
+            public_id: uploaded.public_id
+        };
+    }; 
+
+    // صورة البطاقة
+    if (req.files?.nationalIdImage?.[0]) {
+        uploadedFiles.nationalIdImage = await uploadToCloud(req.files.nationalIdImage[0], `users/nationalIds`);
+    }
+
+    // رخصة القيادة
+    if (req.files?.driverLicenseImage?.[0]) {
+        uploadedFiles.driverLicenseImage = await uploadToCloud(req.files.driverLicenseImage[0], `users/driverLicenses`);
+    }
+
+    // رخصة العربية
+    if (req.files?.carLicenseImage?.[0]) {
+        uploadedFiles.carLicenseImage = await uploadToCloud(req.files.carLicenseImage[0], `users/carLicenses`);
+    }
+
+    // صور العربية
+    if (req.files?.carImages) {
+        uploadedFiles.carImages = [];
+        for (const file of req.files.carImages) {
+            const uploaded = await uploadToCloud(file, `users/carImages`);
+            uploadedFiles.carImages.push(uploaded);
+        }
+    }
+
+    // مستندات إضافية
+    if (req.files?.additionalDocuments) {
+        uploadedFiles.additionalDocuments = [];
+        for (const file of req.files.additionalDocuments) {
+            const uploaded = await uploadToCloud(file, `users/additionalDocs`);
+            uploadedFiles.additionalDocuments.push(uploaded);
+        }
+    }
+
+    // ✅ إنشاء المستخدم
+    const user = await dbservice.create({
+        model: Usermodel,
+        data: {
+            fullName,
+            password: hashpassword,
+            email,
+            phone,
+            accountType: 'ServiceProvider',
+            serviceType,
+            ...uploadedFiles
+        }
+    });
+
+    // ✅ إرسال OTP
+    try {
+        if (phone) {
+            await sendOTP(phone);
+            console.log(`📩 OTP تم إرساله إلى الهاتف: ${phone}`);
+        } else if (email) {
+            Emailevent.emit("confirmemail", { email });
+            console.log(`📩 OTP تم إرساله إلى البريد: ${email}`);
+        }
+    } catch (error) {
+        console.error("❌ فشل في إرسال OTP:", error.message);
+        return next(new Error("فشل في إرسال رمز التحقق", { cause: 500 }));
+    }
+
+    return successresponse(res, "تم إنشاء حساب مقدم الخدمة بنجاح، وتم إرسال رمز التحقق", 201);
+});
+
+
 
 
 export const sendotpphone = asyncHandelr(async (req, res, next) => {

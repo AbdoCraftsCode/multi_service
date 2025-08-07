@@ -219,7 +219,7 @@ export const resendOTP = asyncHandelr(async (req, res, next) => {
 
 // $2y$10$ZHEfQKrayDl6V3JwOwnyreovYvhG.zTMW6mIedMEOjjoTr2R367Zy
 
-const AUTHENTICA_API_KEY = process.env.AUTHENTICA_API_KEY || "$2y$10$ZHtIfchtuqASIn1YiPG5w.X6UFuzsOegpt6APriTklUBoZteB.dJe";
+const AUTHENTICA_API_KEY = process.env.AUTHENTICA_API_KEY || "$2y$10$q3BAdOAyWapl3B9YtEVXK.DHmJf/yaOqF4U.MpbBmR8bwjSxm4A6W";
 const AUTHENTICA_VERIFY_URL = "https://api.authentica.sa/api/v1/verify-otp";
 
 export const verifyOTP = async (req, res, next) => {
@@ -292,6 +292,113 @@ export const verifyOTP = async (req, res, next) => {
         });
     }
 };
+
+
+export const confirEachOtp = asyncHandelr(async (req, res, next) => {
+    const { code, email, phone } = req.body;
+
+    if (!code || (!email && !phone)) {
+        return next(new Error("يرجى إدخال الكود ورقم الهاتف أو البريد الإلكتروني", { cause: 400 }));
+    }
+
+    // ✅ تحقق عن طريق الهاتف باستخدام AUTHENTICA
+    if (phone) {
+        const user = await dbservice.findOne({
+            model: Usermodel,
+            filter: { phone }
+        });
+
+        if (!user) {
+            return next(new Error("رقم الهاتف غير مسجل", { cause: 404 }));
+        }
+
+        try {
+            const response = await axios.post(
+                "https://api.authentica.sa/api/v1/verify-otp",
+                {
+                    phone,
+                    otp: code,
+                    session_id: undefined
+                },
+                {
+                    headers: {
+                        "X-Authorization": process.env.AUTHENTICA_API_KEY,
+                        "Content-Type": "application/json",
+                        "Accept": "application/json"
+                    }
+                }
+            );
+
+            console.log("📩 AUTHENTICA response:", response.data);
+
+            if (response.data.status === true && response.data.message === "OTP verified successfully") {
+                await dbservice.updateOne({
+                    model: Usermodel,
+                    filter: { phone },
+                    data: { isConfirmed: true }
+                });
+
+                const access_Token = generatetoken({ payload: { id: user._id } });
+                const refreshToken = generatetoken({ payload: { id: user._id }, expiresIn: "365d" });
+
+                return successresponse(res, "✅ تم التحقق من رقم الهاتف بنجاح", 200, {
+                    access_Token,
+                    refreshToken
+                });
+            } else {
+                return next(new Error("❌ كود التحقق غير صحيح", { cause: 400 }));
+            }
+
+        } catch (error) {
+            console.error("❌ AUTHENTICA Error:", error.response?.data || error.message);
+            return next(new Error("❌ فشل التحقق من OTP عبر الهاتف", { cause: 500 }));
+        }
+    }
+
+    // ✅ تحقق عن طريق البريد الإلكتروني (محلي)
+    if (email) {
+        const user = await dbservice.findOne({ model: Usermodel, filter: { email } });
+
+        if (!user) return next(new Error("البريد الإلكتروني غير مسجل", { cause: 404 }));
+
+        if (user.isConfirmed) return next(new Error("البريد الإلكتروني مؤكد بالفعل", { cause: 400 }));
+
+        if (Date.now() > new Date(user.otpExpiresAt).getTime()) {
+            return next(new Error("انتهت صلاحية الكود", { cause: 400 }));
+        }
+
+        const isValidOTP = comparehash({ planText: `${code}`, valuehash: user.emailOTP });
+        if (!isValidOTP) {
+            const attempts = (user.attemptCount || 0) + 1;
+
+            if (attempts >= 5) {
+                await Usermodel.updateOne({ email }, {
+                    blockUntil: new Date(Date.now() + 2 * 60 * 1000),
+                    attemptCount: 0
+                });
+                return next(new Error("تم حظرك مؤقتًا بعد محاولات خاطئة كثيرة", { cause: 429 }));
+            }
+
+            await Usermodel.updateOne({ email }, { attemptCount: attempts });
+            return next(new Error("كود التحقق غير صحيح", { cause: 400 }));
+        }
+
+        await Usermodel.updateOne({ email }, {
+            isConfirmed: true,
+            $unset: { emailOTP: 0, otpExpiresAt: 0, attemptCount: 0, blockUntil: 0 }
+        });
+
+        const access_Token = generatetoken({ payload: { id: user._id } });
+        const refreshToken = generatetoken({ payload: { id: user._id }, expiresIn: "365d" });
+
+        return successresponse(res, "✅ تم تأكيد البريد الإلكتروني بنجاح", 200, {
+            access_Token,
+            refreshToken
+        });
+    }
+});
+
+
 
 
 export const forgetPasswordphone = asyncHandelr(async (req, res, next) => {

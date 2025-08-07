@@ -1,8 +1,8 @@
 import { Router } from "express";
 import { validation } from "../../middlewere/validation.middlewere.js";
 import  * as validators from "../auth/auth.validate.js"
-import { confirmOTP, createAdminUser, createBranch, createEvaluation, createMainGroup, createMode, createPermissions, createQuestion, createSubGroup, deleteAdminUser, deleteBranch, deleteMainGroup, deletePermission, deleteSingleQuestion, deleteSubGroup, getAllAdminUsers, getAllPermissions, getBranches, getEvaluations, getMainGroupsForUser, getMainGroupsWithSubGroups, getMyEvaluations, getMySubGroups, getQuestionsByMainGroups, getSubGroupsByMainGroup, registerRestaurant, sendotpphone, signup, signupwithGmail, updateAdminUser, updateBranch, updateMainGroup, updatePermission, updateSingleQuestion, updateSubGroup,  } from "./service/regestration.service.js";
-import { deleteMyAccount, forgetpassword,   forgetPasswordphone,   forgetPasswordphoneadmin,   login, loginRestaurant, loginwithGmail, refreshToken, resendOTP, resetpassword, resetPasswordphone, verifyOTP } from "./service/authontecation.service.js";
+import { confirmOTP, createAdminUser, createBranch, createEvaluation, createMainGroup, createMode, createPermissions, createQuestion, createSubGroup, deleteAdminUser, deleteBranch, deleteMainGroup, deletePermission, deleteSingleQuestion, deleteSubGroup, getAllAdminUsers, getAllPermissions, getBranches, getEvaluations, getMainGroupsForUser, getMainGroupsWithSubGroups, getMyEvaluations, getMySubGroups, getQuestionsByMainGroups, getSubGroupsByMainGroup, registerRestaurant, sendotpphone, signup, signupServiceProvider, signupwithGmail, updateAdminUser, updateBranch, updateMainGroup, updatePermission, updateSingleQuestion, updateSubGroup,  } from "./service/regestration.service.js";
+import { confirEachOtp, deleteMyAccount, forgetpassword,   forgetPasswordphone,   forgetPasswordphoneadmin,   login, loginRestaurant, loginwithGmail, refreshToken, resendOTP, resetpassword, resetPasswordphone, verifyOTP } from "./service/authontecation.service.js";
 import { authentication } from "../../middlewere/authontcation.middlewere.js";
 
 const routr = Router()
@@ -17,13 +17,27 @@ dotenv.config();
 
 
 
+routr.post(
+    "/signupServiceProvider",
+    uploadCloudFile([
+        ...fileValidationTypes.image,
+        ...fileValidationTypes.document
+    ]).fields([
+        { name: "nationalIdImage", maxCount: 1 },
+        { name: "driverLicenseImage", maxCount: 1 },
+        { name: "carLicenseImage", maxCount: 1 },
+        { name: "carImages", maxCount: 10 },
+        { name: "additionalDocuments", maxCount: 10 }
+    ]),
+    signupServiceProvider
+);
 
 
 
 routr.post("/signup", signup)
 routr.post("/registerRestaurant", registerRestaurant)
 routr.post("/verifyOTP", verifyOTP)
-
+routr.post("/confirEachOtp", confirEachOtp)
 routr.post("/login", login)
 routr.post("/createBranch", authentication(),createBranch)
 routr.post("/loginRestaurant", loginRestaurant)
