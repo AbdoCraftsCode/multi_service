@@ -20,6 +20,7 @@ import { AdminUserModel } from "../../../DB/models/adminUserSchema.model.js";
 import { QuestionModel } from "../../../DB/models/question2Schema.model.js";
 import { EvaluationModel } from "../../../DB/models/evaluationStatusSchema.model.js";
 import evaluateModel from "../../../DB/models/evaluate.model.js";
+import RentalPropertyModel from "../../../DB/models/rentalPropertySchema.model.js";
 dotenv.config();
 
 
@@ -242,6 +243,98 @@ export const signupServiceProvider = asyncHandelr(async (req, res, next) => {
 
     return successresponse(res, "تم إنشاء حساب مقدم الخدمة بنجاح، وتم إرسال رمز التحقق", 201);
 });
+
+
+
+
+
+export const createRentalProperty = asyncHandelr (async (req, res, next) => {
+    const {
+        title,
+        location,
+        phoneNumber,
+        description,
+        price,
+        category,
+        amenities
+    } = req.body;
+
+    // تحقق من الحقول المطلوبة
+    if (!title || !location || !phoneNumber || !description || !price || !category) {
+        return next(new Error("جميع الحقول الأساسية مطلوبة", { cause: 400 }));
+    }
+
+    // رفع الملفات
+    const uploadedFiles = {};
+
+    const uploadToCloud = async (file, folder) => {
+        const isPDF = file.mimetype === "application/pdf";
+        const uploaded = await cloud.uploader.upload(file.path, {
+            folder,
+            resource_type: isPDF ? "raw" : "auto",
+        });
+        return {
+            secure_url: uploaded.secure_url,
+            public_id: uploaded.public_id,
+        };
+    };
+
+    // رفع صور العقار
+    if (req.files?.images) {
+        uploadedFiles.images = [];
+        for (const file of req.files.images) {
+            const uploaded = await uploadToCloud(file, `rentalProperties/images`);
+            uploadedFiles.images.push(uploaded);
+        }
+    }
+
+    // إنشاء العقار في قاعدة البيانات
+    const property = await dbservice.create({
+        model: RentalPropertyModel,
+        data: {
+            title,
+            location,
+            phoneNumber,
+            description,
+            price,
+            category,
+            amenities: amenities ? JSON.parse(amenities) : {},
+            createdBy: req.user._id, // من التوكن
+            ...uploadedFiles
+        }
+    });
+
+    return res.status(201).json({
+        message: "تم إنشاء العقار بنجاح",
+        data: property
+    });
+});
+
+
+
+
+export const getUserRentalProperties = asyncHandelr(async (req, res, next) => {
+    const userId = req.user._id; // جاي من التوكن بعد الـ auth middleware
+    const { category } = req.query; // الفلتر من الـ query
+
+    // إعداد الفلتر
+    const filter = { createdBy: userId };
+    if (category) {
+        filter.category = category; // يفلتر لو فيه category
+    }
+
+    // جلب العقارات
+    const properties = await dbservice.findAll({
+        model: RentalPropertyModel,
+        filter,
+    });
+
+    return successresponse(res, "تم جلب العقارات بنجاح", 200, properties);
+});
+
+
+
+
 
 
 
