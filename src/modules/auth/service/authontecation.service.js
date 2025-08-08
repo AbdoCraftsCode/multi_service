@@ -18,7 +18,7 @@ export const login = asyncHandelr(async (req, res, next) => {
     console.log(identifier, password);
 
     const checkUser = await Usermodel.findOne({
-        $or: [{ username: identifier }, { mobileNumber: identifier }]
+        $or: [{ email: identifier }, { phone: identifier }]
     });
 
     if (!checkUser) {

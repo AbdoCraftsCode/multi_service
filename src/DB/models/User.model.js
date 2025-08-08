@@ -108,11 +108,15 @@ const userSchema = new Schema({
         secure_url: String,
         public_id: String
     }],
-    additionalDocuments: [{
+    additionalDocuments: {
         secure_url: String,
         public_id: String
-    }],
+    },
 
+    profiePicture: {
+        secure_url: String,
+        public_id: String
+    },
 }, {
     timestamps: true,
     toJSON: { virtuals: true },

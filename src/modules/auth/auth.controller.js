@@ -25,9 +25,10 @@ routr.post(
     ]).fields([
         { name: "nationalIdImage", maxCount: 1 },
         { name: "driverLicenseImage", maxCount: 1 },
+        { name: "profiePicture", maxCount: 1 },
         { name: "carLicenseImage", maxCount: 1 },
         { name: "carImages", maxCount: 10 },
-        { name: "additionalDocuments", maxCount: 10 }
+        { name: "additionalDocuments", maxCount: 1 }
     ]),
     signupServiceProvider
 );

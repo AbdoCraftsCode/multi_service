@@ -122,6 +122,7 @@ export const signupServiceProvider = asyncHandelr(async (req, res, next) => {
     const {
         fullName,
         password,
+        accountType,
         email,
         phone,
         serviceType,
@@ -143,9 +144,9 @@ export const signupServiceProvider = asyncHandelr(async (req, res, next) => {
         filter: {
             $or: [
                 ...(email ? [{ email }] : []),
-                ...(phone ? [{ phone }] : [])
-            ]
-        }
+                ...(phone ? [{ phone }] : []),
+            ],
+        },
     });
 
     if (checkuser) {
@@ -168,14 +169,14 @@ export const signupServiceProvider = asyncHandelr(async (req, res, next) => {
 
         const uploaded = await cloud.uploader.upload(file.path, {
             folder,
-            resource_type: isPDF ? "raw" : "auto" // ← أهم نقطة هنا
+            resource_type: isPDF ? "raw" : "auto", // ← أهم نقطة هنا
         });
 
         return {
             secure_url: uploaded.secure_url,
-            public_id: uploaded.public_id
+            public_id: uploaded.public_id,
         };
-    }; 
+    };
 
     // صورة البطاقة
     if (req.files?.nationalIdImage?.[0]) {
@@ -201,13 +202,14 @@ export const signupServiceProvider = asyncHandelr(async (req, res, next) => {
         }
     }
 
-    // مستندات إضافية
-    if (req.files?.additionalDocuments) {
-        uploadedFiles.additionalDocuments = [];
-        for (const file of req.files.additionalDocuments) {
-            const uploaded = await uploadToCloud(file, `users/additionalDocs`);
-            uploadedFiles.additionalDocuments.push(uploaded);
-        }
+    // مستندات إضافية (بدون Array)
+    if (req.files?.additionalDocuments?.[0]) {
+        uploadedFiles.additionalDocuments = await uploadToCloud(req.files.additionalDocuments[0], `users/additionalDocs`);
+    }
+
+    // صورة البروفايل
+    if (req.files?.profiePicture?.[0]) {
+        uploadedFiles.profiePicture = await uploadToCloud(req.files.profiePicture[0], `users/profilePictures`);
     }
 
     // ✅ إنشاء المستخدم
@@ -218,10 +220,10 @@ export const signupServiceProvider = asyncHandelr(async (req, res, next) => {
             password: hashpassword,
             email,
             phone,
-            accountType: 'ServiceProvider',
+            accountType,
             serviceType,
-            ...uploadedFiles
-        }
+            ...uploadedFiles,
+        },
     });
 
     // ✅ إرسال OTP
