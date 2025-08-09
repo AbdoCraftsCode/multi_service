@@ -623,18 +623,14 @@ export const createDoctor = asyncHandelr(async (req, res, next) => {
 
 
 export const getMyDoctorProfile = asyncHandelr(async (req, res, next) => {
-    // جلب الدكتور بناءً على الـ userId الخاص بالمستخدم الحالي
     const doctor = await DoctorModel.findOne({ createdBy: req.user._id });
-
-    if (!doctor) {
-        return next(new Error("لا يوجد بيانات لهذا الطبيب", { cause: 404 }));
-    }
 
     return res.status(200).json({
         message: "تم جلب بيانات الطبيب بنجاح",
-        data: doctor
+        data: doctor || null
     });
 });
+
 
 
 
