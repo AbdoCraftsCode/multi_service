@@ -48,7 +48,7 @@ export const login = asyncHandelr(async (req, res, next) => {
         expiresIn: "365d"
     });
 
-    return successresponse(res, "Done", 200, { access_Token, refreshToken });
+    return successresponse(res, "Done", 200, { access_Token, refreshToken, checkUser });
 });
 
 // export const loginwithGmail = asyncHandelr(async (req, res, next) => {
@@ -343,7 +343,8 @@ export const confirEachOtp = asyncHandelr(async (req, res, next) => {
 
                 return successresponse(res, "✅ تم التحقق من رقم الهاتف بنجاح", 200, {
                     access_Token,
-                    refreshToken
+                    refreshToken,
+                    user
                 });
             } else {
                 return next(new Error("❌ كود التحقق غير صحيح", { cause: 400 }));
@@ -393,7 +394,8 @@ export const confirEachOtp = asyncHandelr(async (req, res, next) => {
 
         return successresponse(res, "✅ تم تأكيد البريد الإلكتروني بنجاح", 200, {
             access_Token,
-            refreshToken
+            refreshToken,
+            user
         });
     }
 });
