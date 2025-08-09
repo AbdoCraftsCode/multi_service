@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { validation } from "../../middlewere/validation.middlewere.js";
 import  * as validators from "../auth/auth.validate.js"
-import { confirmOTP, createAdminUser, createBranch, createEvaluation, createMainGroup, createMode, createPermissions, createQuestion, createRentalProperty, createSubGroup, deleteAdminUser, deleteBranch, deleteMainGroup, deletePermission, deleteRentalProperty, deleteSingleQuestion, deleteSubGroup, getAllAdminUsers, getAllNormalUsers, getAllPermissions, getAllServiceProviders, getBranches, getEvaluations, getMainGroupsForUser, getMainGroupsWithSubGroups, getMyEvaluations, getMySubGroups, getQuestionsByMainGroups, getSubGroupsByMainGroup, getUserRentalProperties, registerRestaurant, sendotpphone, signup, signupServiceProvider, signupwithGmail, updateAdminUser, updateBranch, updateMainGroup, updatePermission, updateRentalProperty, updateSingleQuestion, updateSubGroup,  } from "./service/regestration.service.js";
+import { confirmOTP, createAdminUser, createBranch, createDoctor, createEvaluation, createMainGroup, createMode, createPermissions, createQuestion, createRentalProperty, createSubGroup, deleteAdminUser, deleteBranch, deleteMainGroup, deletePermission, deleteRentalProperty, deleteSingleQuestion, deleteSubGroup, getAllAdminUsers, getAllNormalUsers, getAllPermissions, getAllServiceProviders, getBranches, getEvaluations, getMainGroupsForUser, getMainGroupsWithSubGroups, getMyDoctorProfile, getMyEvaluations, getMySubGroups, getQuestionsByMainGroups, getSubGroupsByMainGroup, getUserRentalProperties, registerRestaurant, sendotpphone, signup, signupServiceProvider, signupwithGmail, updateAdminUser, updateBranch, updateMainGroup, updatePermission, updateRentalProperty, updateSingleQuestion, updateSubGroup,  } from "./service/regestration.service.js";
 import { confirEachOtp, deleteMyAccount, forgetpassword,   forgetPasswordphone,   forgetPasswordphoneadmin,   login, loginRestaurant, loginwithGmail, refreshToken, resendOTP, resetpassword, resetPasswordphone, verifyOTP } from "./service/authontecation.service.js";
 import { authentication } from "../../middlewere/authontcation.middlewere.js";
 
@@ -15,6 +15,18 @@ import { fileValidationTypes, uploadCloudFile } from "../../utlis/multer/cloud.m
 
 dotenv.config();
 
+routr.post(
+    "/createDoctor",
+    authentication(),
+    uploadCloudFile([
+        ...fileValidationTypes.image,
+        ...fileValidationTypes.document
+    ]).fields([
+        { name: "profileImage", maxCount: 1 },
+        { name: "certificates", maxCount: 10 }
+    ]),
+    createDoctor
+);
 
 
 routr.post(
@@ -47,7 +59,9 @@ routr.post(
 
 routr.post("/signup", signup)
 
-routr.get("/getUserRentalProperties", authentication(),getUserRentalProperties)
+routr.get("/getUserRentalProperties", authentication(), getUserRentalProperties)
+routr.get("/getMyDoctorProfile", authentication(), getMyDoctorProfile)
+
 routr.post("/registerRestaurant", registerRestaurant)
 routr.post("/verifyOTP", verifyOTP)
 routr.patch("/updateRentalProperty/:id", authentication(),

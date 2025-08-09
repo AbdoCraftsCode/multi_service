@@ -21,6 +21,7 @@ import { QuestionModel } from "../../../DB/models/question2Schema.model.js";
 import { EvaluationModel } from "../../../DB/models/evaluationStatusSchema.model.js";
 import evaluateModel from "../../../DB/models/evaluate.model.js";
 import RentalPropertyModel from "../../../DB/models/rentalPropertySchema.model.js";
+import DoctorModel from "../../../DB/models/workingHoursSchema.model.js";
 dotenv.config();
 
 
@@ -531,8 +532,109 @@ export const getAllServiceProviders = async (req, res, next) => {
 };
 
 
+export const createDoctor = asyncHandelr(async (req, res, next) => {
+    let {
+        name,
+        specialization,
+        location,
+        mapLink,
+        titles,
+        medicalField,
+        workingHours,
+        rating,
+        reviewCount,
+        latitude,
+        longitude,
+        experience,
+        consultationFee,
+        hospitalName
+    } = req.body;
+
+    // 🧹 تنظيف القيم النصية
+    const trimIfString = (val) => typeof val === 'string' ? val.trim() : val;
+
+    name = trimIfString(name);
+    specialization = trimIfString(specialization);
+    location = trimIfString(location);
+    mapLink = trimIfString(mapLink);
+    medicalField = trimIfString(medicalField);
+    experience = trimIfString(experience);
+    hospitalName = trimIfString(hospitalName);
+
+    // تحقق من الحقول المطلوبة
+    if (!name || !specialization || !location || !medicalField || !latitude || !longitude || !hospitalName) {
+        return next(new Error("جميع الحقول الأساسية مطلوبة", { cause: 400 }));
+    }
+
+    // رفع الملفات
+    const uploadedFiles = {};
+    const uploadToCloud = async (file, folder) => {
+        const isPDF = file.mimetype === "application/pdf";
+        const uploaded = await cloud.uploader.upload(file.path, {
+            folder,
+            resource_type: isPDF ? "raw" : "auto",
+        });
+        return {
+            secure_url: uploaded.secure_url,
+            public_id: uploaded.public_id,
+        };
+    };
+
+    // رفع صورة البروفايل
+    if (req.files?.profileImage?.[0]) {
+        uploadedFiles.profileImage = await uploadToCloud(req.files.profileImage[0], `doctors/profile`);
+    }
+
+    // رفع الشهادات
+    if (req.files?.certificates) {
+        uploadedFiles.certificates = [];
+        for (const file of req.files.certificates) {
+            const uploaded = await uploadToCloud(file, `doctors/certificates`);
+            uploadedFiles.certificates.push(uploaded);
+        }
+    }
+
+    // إنشاء الدكتور في قاعدة البيانات
+    const doctor = await DoctorModel.create({
+        name,
+        specialization,
+        location,
+        mapLink,
+        titles: titles ? JSON.parse(titles) : [],
+        medicalField,
+        certificates: uploadedFiles.certificates || [],
+        workingHours: workingHours ? JSON.parse(workingHours) : {},
+        rating: rating || 0,
+        reviewCount: reviewCount || 0,
+        profileImage: uploadedFiles.profileImage || null,
+        latitude,
+        longitude,
+        experience,
+        consultationFee,
+        createdBy: req.user._id,
+        hospitalName
+    });
+
+    return res.status(201).json({
+        message: "تم إنشاء الدكتور بنجاح",
+        data: doctor
+    });
+});
 
 
+export const getMyDoctorProfile = asyncHandelr(async (req, res, next) => {
+    // جلب الدكتور بناءً على الـ userId الخاص بالمستخدم الحالي
+    const doctor = await DoctorModel.findOne({ createdBy: req.user._id });
+
+    if (!doctor) {
+        return next(new Error("لا يوجد بيانات لهذا الطبيب", { cause: 404 }));
+    }
+
+    return res.status(200).json({
+        message: "تم جلب بيانات الطبيب بنجاح",
+        data: doctor
+    });
+});
 
 
 
