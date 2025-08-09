@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { validation } from "../../middlewere/validation.middlewere.js";
 import  * as validators from "../auth/auth.validate.js"
-import { confirmOTP, createAdminUser, createBranch, createEvaluation, createMainGroup, createMode, createPermissions, createQuestion, createRentalProperty, createSubGroup, deleteAdminUser, deleteBranch, deleteMainGroup, deletePermission, deleteSingleQuestion, deleteSubGroup, getAllAdminUsers, getAllPermissions, getBranches, getEvaluations, getMainGroupsForUser, getMainGroupsWithSubGroups, getMyEvaluations, getMySubGroups, getQuestionsByMainGroups, getSubGroupsByMainGroup, getUserRentalProperties, registerRestaurant, sendotpphone, signup, signupServiceProvider, signupwithGmail, updateAdminUser, updateBranch, updateMainGroup, updatePermission, updateSingleQuestion, updateSubGroup,  } from "./service/regestration.service.js";
+import { confirmOTP, createAdminUser, createBranch, createEvaluation, createMainGroup, createMode, createPermissions, createQuestion, createRentalProperty, createSubGroup, deleteAdminUser, deleteBranch, deleteMainGroup, deletePermission, deleteRentalProperty, deleteSingleQuestion, deleteSubGroup, getAllAdminUsers, getAllNormalUsers, getAllPermissions, getAllServiceProviders, getBranches, getEvaluations, getMainGroupsForUser, getMainGroupsWithSubGroups, getMyEvaluations, getMySubGroups, getQuestionsByMainGroups, getSubGroupsByMainGroup, getUserRentalProperties, registerRestaurant, sendotpphone, signup, signupServiceProvider, signupwithGmail, updateAdminUser, updateBranch, updateMainGroup, updatePermission, updateRentalProperty, updateSingleQuestion, updateSubGroup,  } from "./service/regestration.service.js";
 import { confirEachOtp, deleteMyAccount, forgetpassword,   forgetPasswordphone,   forgetPasswordphoneadmin,   login, loginRestaurant, loginwithGmail, refreshToken, resendOTP, resetpassword, resetPasswordphone, verifyOTP } from "./service/authontecation.service.js";
 import { authentication } from "../../middlewere/authontcation.middlewere.js";
 
@@ -50,17 +50,29 @@ routr.post("/signup", signup)
 routr.get("/getUserRentalProperties", authentication(),getUserRentalProperties)
 routr.post("/registerRestaurant", registerRestaurant)
 routr.post("/verifyOTP", verifyOTP)
+routr.patch("/updateRentalProperty/:id", authentication(),
+    uploadCloudFile([
+        ...fileValidationTypes.image,
+        ...fileValidationTypes.document
+    ]).fields([
+        { name: "images", maxCount: 10 } // صور العقار
+    ]),
+    updateRentalProperty)
 routr.post("/confirEachOtp", confirEachOtp)
 routr.post("/login", login)
-routr.post("/createBranch", authentication(),createBranch)
+routr.post("/createBranch", authentication(), createBranch)
+routr.delete("/deleteRentalProperty/:id", authentication(), deleteRentalProperty)
 routr.post("/loginRestaurant", loginRestaurant)
 routr.post("/resendOTP",resendOTP )
-routr.post("/resetpassword", resetpassword)
+routr.post("/resetpassword", resetpassword) 
 routr.patch("/resetPasswordphone", resetPasswordphone)
 routr.post("/signupwithGmail", signupwithGmail)
 // routr.post("/confirmOTP", confirmOTP)
 routr.post("/sendotpphone", sendotpphone)
 routr.post("/confirmOTP", confirmOTP)
+routr.get("/getAllNormalUsers", getAllNormalUsers)
+routr.get("/getAllServiceProviders", getAllServiceProviders)
+
 routr.post("/getBranches", authentication(), getBranches)
 routr.get("/getMainGroupsForUser", authentication(), getMainGroupsForUser)
 

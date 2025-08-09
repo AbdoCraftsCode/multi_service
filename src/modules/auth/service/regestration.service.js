@@ -333,6 +333,204 @@ export const getUserRentalProperties = asyncHandelr(async (req, res, next) => {
 });
 
 
+export const updateRentalProperty = asyncHandelr(async (req, res, next) => {
+    const { id } = req.params;
+    const userId = req.user._id;
+
+    // 🔍 جلب العقار
+    const property = await dbservice.findOne({
+        model: RentalPropertyModel,
+        filter: { _id: id, createdBy: userId }
+    });
+
+    if (!property) {
+        return next(new Error("العقار غير موجود أو ليس لديك صلاحية لتعديله", { cause: 404 }));
+    }
+
+    // 🟢 تجهيز البيانات التي سيتم تحديثها
+    let updatedData = { ...req.body };
+
+    // ✅ دالة آمنة لتحويل النص إلى JSON
+    const tryParse = (val, fallback) => {
+        if (typeof val === "string") {
+            try {
+                return JSON.parse(val);
+            } catch {
+                return fallback;
+            }
+        }
+        return val ?? fallback;
+    };
+
+    // ✅ تجهيز الـ amenities
+    updatedData.amenities = tryParse(updatedData.amenities, {});
+
+    // ✅ تجهيز الصور المرسلة (لو مفيش، نخليها null عشان نشتغل على القديمة)
+    updatedData.images = tryParse(updatedData.images, null);
+
+    const uploadToCloud = async (file, folder) => {
+        const isPDF = file.mimetype === "application/pdf";
+        const uploaded = await cloud.uploader.upload(file.path, {
+            folder,
+            resource_type: isPDF ? "raw" : "auto",
+        });
+        return {
+            secure_url: uploaded.secure_url,
+            public_id: uploaded.public_id,
+        };
+    };
+
+    // 🟢 إدارة الصور (إضافة + حذف + احتفاظ)
+    if (updatedData.images !== null || req.files?.images) {
+        let finalImages = [];
+
+        // 🟠 لو أرسل قائمة صور يحتفظ بها
+        if (Array.isArray(updatedData.images)) {
+            finalImages = [...updatedData.images];
+        } else {
+            // 🔹 ضمان أن property.images مصفوفة
+            finalImages = Array.isArray(property.images) ? [...property.images] : [];
+        }
+
+        // 🟠 إضافة الصور الجديدة
+        if (req.files?.images) {
+            const files = Array.isArray(req.files.images) ? req.files.images : [req.files.images];
+            for (const file of files) {
+                const uploaded = await uploadToCloud(file, `rentalProperties/images`);
+                finalImages.push(uploaded);
+            }
+        }
+
+        // 🟠 حذف الصور القديمة التي لم تعد موجودة
+        const removedImages = (property.images || []).filter(
+            oldImg => !finalImages.some(newImg => newImg.public_id === oldImg.public_id)
+        );
+        for (const img of removedImages) {
+            if (img?.public_id) {
+                await cloud.uploader.destroy(img.public_id);
+            }
+        }
+
+        updatedData.images = finalImages;
+    }
+
+    // 🟢 تحديث البيانات في قاعدة البيانات
+    const updatedProperty = await dbservice.findOneAndUpdate({
+        model: RentalPropertyModel,
+        filter: { _id: id, createdBy: userId },
+        data: updatedData,
+        options: { new: true }
+    });
+
+    // تحويل النتيجة لكائن JSON نظيف
+    const cleanData = updatedProperty.toObject({ versionKey: false });
+
+    return successresponse(res, "تم تحديث العقار بنجاح", 200, cleanData);
+
+});
+
+
+export const deleteRentalProperty = asyncHandelr(async (req, res, next) => {
+    const { id } = req.params;
+    const userId = req.user._id;
+
+    // 🔍 التأكد من وجود العقار وصلاحيته
+    const property = await dbservice.findOne({
+        model: RentalPropertyModel,
+        filter: { _id: id, createdBy: userId }
+    });
+
+    if (!property) {
+        return next(new Error("العقار غير موجود أو ليس لديك صلاحية لحذفه", { cause: 404 }));
+    }
+
+    // 🗑 حذف الصور من Cloudinary
+    if (property.images && Array.isArray(property.images)) {
+        for (const img of property.images) {
+            if (img?.public_id) {
+                await cloud.uploader.destroy(img.public_id);
+            }
+        }
+    }
+
+    // 🗑 حذف العقار من قاعدة البيانات
+    await dbservice.deleteOne({
+        model: RentalPropertyModel,
+        filter: { _id: id, createdBy: userId }
+    });
+
+    return res.status(200).json({
+        message: "تم حذف العقار بنجاح"
+    });
+});
+
+
+export const getAllNormalUsers = async (req, res, next) => {
+    try {
+        const { page = 1, limit = 10 } = req.query;
+
+        const skip = (page - 1) * limit;
+
+        // جلب المستخدمين
+        const users = await Usermodel.find({ accountType: "User" })
+            .sort({ createdAt: -1 })
+            .skip(Number(skip))
+            .limit(Number(limit));
+
+        // عدد المستخدمين الكلي
+        const totalUsers = await Usermodel.countDocuments({ accountType: "User" });
+
+        return res.status(200).json({
+            message: "تم جلب المستخدمين بنجاح",
+            total: totalUsers,
+            page: Number(page),
+            pages: Math.ceil(totalUsers / limit),
+            data: users
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+
+
+
+export const getAllServiceProviders = async (req, res, next) => {
+    try {
+        const { page = 1, limit = 10, serviceType } = req.query;
+        const skip = (page - 1) * limit;
+
+        // فلتر أساسي
+        const filter = { accountType: "ServiceProvider" };
+
+        // فلترة على حسب serviceType (اختياري)
+        if (serviceType) {
+            const cleanServiceType = String(serviceType).trim();
+            filter.serviceType = { $regex: `^${cleanServiceType}$`, $options: 'i' };
+        }
+
+        // جلب البيانات
+        const serviceProviders = await Usermodel.find(filter)
+            .sort({ createdAt: -1 })
+            .skip(Number(skip))
+            .limit(Number(limit));
+
+        // إجمالي العدد
+        const total = await Usermodel.countDocuments(filter);
+
+        return res.status(200).json({
+            message: "تم جلب مزودي الخدمة بنجاح",
+            total,
+            page: Number(page),
+            pages: Math.ceil(total / limit),
+            data: serviceProviders
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+
 
 
 
