@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { validation } from "../../middlewere/validation.middlewere.js";
 import  * as validators from "../auth/auth.validate.js"
-import { confirmOTP, createAdminUser, createBranch, createDoctor, createEvaluation, createMainGroup, createMode, createPermissions, createQuestion, createRentalProperty, createSubGroup, deleteAdminUser, deleteBranch, deleteDoctor, deleteMainGroup, deletePermission, deleteRentalProperty, deleteSingleQuestion, deleteSubGroup, getAllAdminUsers, getAllNormalUsers, getAllPermissions, getAllServiceProviders, getBranches, getEvaluations, getMainGroupsForUser, getMainGroupsWithSubGroups, getMyDoctorProfile, getMyEvaluations, getMySubGroups, getQuestionsByMainGroups, getSubGroupsByMainGroup, getUserRentalProperties, registerRestaurant, sendotpphone, signup, signupServiceProvider, signupwithGmail, updateAdminUser, updateBranch, updateDoctor, updateMainGroup, updatePermission, updateRentalProperty, updateSingleQuestion, updateSubGroup,  } from "./service/regestration.service.js";
+import { confirmOTP, createAdminUser, createBranch, createDoctor, createEvaluation, createMainGroup, createMode, createPermissions, createProduct, createQuestion, createRentalProperty, createRestaurant, createSubGroup, deleteAdminUser, deleteBranch, deleteDoctor, deleteMainGroup, deletePermission, deleteRentalProperty, deleteSingleQuestion, deleteSubGroup, getAllAdminUsers, getAllNormalUsers, getAllPermissions, getAllRentalProperties, getAllServiceProviders, getBranches, getDoctors, getEvaluations, getMainGroupsForUser, getMainGroupsWithSubGroups, getMyDoctorProfile, getMyEvaluations, getMySubGroups, getQuestionsByMainGroups, getSubGroupsByMainGroup, getUserRentalProperties, registerRestaurant, sendotpphone, signup, signupServiceProvider, signupwithGmail, updateAdminUser, updateBranch, updateDoctor, updateMainGroup, updatePermission, updateRentalProperty, updateSingleQuestion, updateSubGroup,  } from "./service/regestration.service.js";
 import { confirEachOtp, deleteMyAccount, forgetpassword,   forgetPasswordphone,   forgetPasswordphoneadmin,   login, loginRestaurant, loginwithGmail, refreshToken, resendOTP, resetpassword, resetPasswordphone, verifyOTP } from "./service/authontecation.service.js";
 import { authentication } from "../../middlewere/authontcation.middlewere.js";
 
@@ -67,10 +67,35 @@ routr.post(
         ...fileValidationTypes.image,
         ...fileValidationTypes.document
     ]).fields([
-        { name: "images", maxCount: 10 } // صور العقار
+        { name: "image", maxCount: 10 } // صور العقار
     ]),
     createRentalProperty
 );
+
+routr.post(
+    "/createRestaurant",
+    authentication(), // تحقق من التوكن
+    uploadCloudFile([
+        ...fileValidationTypes.image,
+        ...fileValidationTypes.document
+    ]).fields([
+        { name: "image", maxCount: 10 } // صور العقار
+    ]),
+    createRestaurant
+);
+
+routr.post(
+    "/createProduct",
+    authentication(), // تحقق من التوكن
+    uploadCloudFile([
+        ...fileValidationTypes.image,
+        ...fileValidationTypes.document
+    ]).fields([
+        { name: "images", maxCount: 10 } // صور العقار
+    ]),
+    createProduct
+);
+
 
 routr.post("/signup", signup)
 
@@ -89,6 +114,9 @@ routr.patch("/updateRentalProperty/:id", authentication(),
     updateRentalProperty)
 routr.post("/confirEachOtp", confirEachOtp)
 routr.post("/login", login)
+
+routr.get("/getDoctors", getDoctors)
+routr.get("/getAllRentalProperties", getAllRentalProperties)
 routr.post("/createBranch", authentication(), createBranch)
 routr.delete("/deleteRentalProperty/:id", authentication(), deleteRentalProperty)
 routr.post("/loginRestaurant", loginRestaurant)

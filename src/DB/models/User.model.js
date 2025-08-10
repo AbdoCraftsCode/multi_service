@@ -56,6 +56,7 @@ export const providerTypes = { system: "system", google: "google" };
 
 const userSchema = new Schema({
     fullName: { type: String, required: true },
+    role: { type: String,  },
     email: { type: String, unique: true, sparse: true, trim: true },
     phone: { type: String, unique: true, sparse: true, trim: true },
 
@@ -64,7 +65,7 @@ const userSchema = new Schema({
 
     accountType: {
         type: String,
-        enum: ['User', 'ServiceProvider'],
+        enum: ['User', 'ServiceProvider','Owner'],
         required: true
     },
 

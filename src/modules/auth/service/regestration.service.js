@@ -22,6 +22,7 @@ import { EvaluationModel } from "../../../DB/models/evaluationStatusSchema.model
 import evaluateModel from "../../../DB/models/evaluate.model.js";
 import RentalPropertyModel from "../../../DB/models/rentalPropertySchema.model.js";
 import DoctorModel from "../../../DB/models/workingHoursSchema.model.js";
+import { ProductModell, RestaurantModell } from "../../../DB/models/productSchema.model.js";
 dotenv.config();
 
 
@@ -334,6 +335,26 @@ export const getUserRentalProperties = asyncHandelr(async (req, res, next) => {
 });
 
 
+export const getAllRentalProperties = asyncHandelr(async (req, res, next) => {
+    const { category } = req.query;
+
+    let filter = {};
+    if (category) {
+        filter.category = category;
+    }
+
+    const properties = await RentalPropertyModel.find(filter)
+        .populate("createdBy", "fullName") // 📌 إظهار الاسم فقط
+        .sort({ createdAt: -1 });
+
+    res.status(200).json({
+        message: "تم جلب العقارات بنجاح",
+        count: properties.length,
+        data: properties
+    });
+});
+
+
 export const updateRentalProperty = asyncHandelr(async (req, res, next) => {
     const { id } = req.params;
     const userId = req.user._id;
@@ -620,6 +641,37 @@ export const createDoctor = asyncHandelr(async (req, res, next) => {
         data: doctor
     });
 });
+export const getDoctors = asyncHandelr(async (req, res, next) => {
+    const { medicalField, specialization, location, page = 1, limit = 10 } = req.query;
+
+    // تجهيز الفلترة
+    const filter = {};
+    if (medicalField) filter.medicalField = medicalField.trim();
+    if (specialization) filter.specialization = { $regex: specialization.trim(), $options: "i" };
+    if (location) filter.location = { $regex: location.trim(), $options: "i" };
+
+    // الحساب
+    const skip = (Number(page) - 1) * Number(limit);
+
+    // جلب البيانات
+    const doctors = await DoctorModel.find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(Number(limit));
+
+    const total = await DoctorModel.countDocuments(filter);
+
+    return res.status(200).json({
+        message: "تم جلب الأطباء بنجاح",
+        pagination: {
+            total,
+            page: Number(page),
+            limit: Number(limit),
+            totalPages: Math.ceil(total / limit)
+        },
+        data: doctors
+    });
+});
 
 
 export const getMyDoctorProfile = asyncHandelr(async (req, res, next) => {
@@ -749,6 +801,111 @@ export const deleteDoctor = asyncHandelr(async (req, res, next) => {
 
     return res.status(200).json({
         message: "تم حذف بيانات الطبيب والصور بنجاح"
+    });
+});
+
+
+export const createRestaurant = asyncHandelr(async (req, res, next) => {
+    let { name, cuisine, rating, deliveryTime, distance, isOpen } = req.body;
+
+    // 🧹 تنظيف القيم النصية
+    const trimIfString = (val) => typeof val === "string" ? val.trim() : val;
+    name = trimIfString(name);
+    cuisine = trimIfString(cuisine);
+    deliveryTime = trimIfString(deliveryTime);
+    distance = trimIfString(distance);
+
+    // ✅ تحقق من صلاحية المستخدم
+    const user = await Usermodel.findById(req.user._id);
+    if (!user || user.accountType !== "Owner") {
+        return next(new Error("غير مسموح لك بإنشاء مطعم، يجب أن يكون حسابك Owner", { cause: 403 }));
+    }
+
+    // ✅ تحقق من الحقول المطلوبة
+    if (!name || !cuisine || !deliveryTime || !distance) {
+        return next(new Error("جميع الحقول الأساسية مطلوبة", { cause: 400 }));
+    }
+
+    // رفع صورة المطعم
+    let uploadedImage = null;
+    if (req.files?.image?.[0]) {
+        const file = req.files.image[0];
+        const uploaded = await cloud.uploader.upload(file.path, { folder: "restaurants/images" });
+        uploadedImage = {
+            secure_url: uploaded.secure_url,
+            public_id: uploaded.public_id
+        };
+    }
+
+    // إنشاء المطعم
+    const restaurant = await RestaurantModell.create({
+        name,
+        cuisine,
+        rating: rating || 0,
+        deliveryTime,
+        distance,
+        image: uploadedImage,
+        isOpen: isOpen ?? true,
+        createdBy: req.user._id
+    });
+
+    return res.status(201).json({
+        message: "تم إنشاء المطعم بنجاح",
+        data: restaurant
+    });
+});
+
+
+
+export const createProduct = asyncHandelr(async (req, res, next) => {
+    let { restaurantId, name, description, price, discount } = req.body;
+
+    name = name?.trim();
+    description = description?.trim();
+
+    // ✅ تحقق من صلاحية المستخدم
+    const user = await Usermodel.findById(req.user._id);
+    if (!user || user.accountType !== "Owner") {
+        return next(new Error("غير مسموح لك بإنشاء منتج، يجب أن يكون حسابك Owner", { cause: 403 }));
+    }
+
+    // ✅ تحقق من الحقول المطلوبة
+    if (!restaurantId || !name || !price) {
+        return next(new Error("جميع الحقول الأساسية مطلوبة", { cause: 400 }));
+    }
+
+    // تأكد أن المطعم موجود وملكه نفس المستخدم
+    const restaurant = await RestaurantModell.findOne({ _id: restaurantId, createdBy: req.user._id });
+    if (!restaurant) {
+        return next(new Error("لم يتم العثور على المطعم أو ليس ملكك", { cause: 404 }));
+    }
+
+    // رفع صور المنتج
+    let uploadedImages = [];
+    if (req.files?.images) {
+        for (const file of req.files.images) {
+            const uploaded = await cloud.uploader.upload(file.path, { folder: "restaurants/products" });
+            uploadedImages.push({
+                secure_url: uploaded.secure_url,
+                public_id: uploaded.public_id
+            });
+        }
+    }
+
+    // إنشاء المنتج
+    const product = await ProductModell.create({
+        restaurant: restaurantId,
+        name,
+        description,
+        images: uploadedImages,
+        price,
+        discount: discount || 0,
+        createdBy: req.user._id
+    });
+
+    return res.status(201).json({
+        message: "تم إنشاء المنتج بنجاح",
+        data: product
     });
 });
 
