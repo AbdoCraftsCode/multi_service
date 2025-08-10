@@ -631,7 +631,126 @@ export const getMyDoctorProfile = asyncHandelr(async (req, res, next) => {
     });
 });
 
+export const updateDoctor = asyncHandelr(async (req, res, next) => {
+    const { id } = req.params;
+    const userId = req.user._id;
 
+    // 🔍 جلب الدكتور
+    const doctor = await DoctorModel.findOne({ _id: id, createdBy: userId });
+    if (!doctor) {
+        return next(new Error("لم يتم العثور على بيانات الطبيب أو ليس لديك صلاحية لتعديلها", { cause: 404 }));
+    }
+
+    // 🟢 دالة تشيل المسافات من النصوص
+    const trimIfString = (val) => typeof val === 'string' ? val.trim() : val;
+
+    // 🟢 تجهيز البيانات
+    let updatedData = {};
+    for (const [key, value] of Object.entries(req.body)) {
+        updatedData[key] = trimIfString(value);
+    }
+
+    // ✅ دالة لتحويل النص لـ JSON لو لزم
+    const tryParse = (val, fallback) => {
+        if (typeof val === "string") {
+            try { return JSON.parse(val); } catch { return fallback; }
+        }
+        return val ?? fallback;
+    };
+
+    updatedData.titles = tryParse(updatedData.titles, doctor.titles);
+    updatedData.workingHours = tryParse(updatedData.workingHours, doctor.workingHours);
+    let certificatesFromBody = tryParse(updatedData.certificates, undefined);
+
+    const uploadToCloud = async (file, folder) => {
+        const isPDF = file.mimetype === "application/pdf";
+        const uploaded = await cloud.uploader.upload(file.path, {
+            folder,
+            resource_type: isPDF ? "raw" : "auto",
+        });
+        return { secure_url: uploaded.secure_url, public_id: uploaded.public_id };
+    };
+
+    // 🟢 تحديث صورة البروفايل
+    if (req.files?.profileImage?.[0]) {
+        if (doctor.profileImage?.public_id) {
+            await cloud.uploader.destroy(doctor.profileImage.public_id);
+        }
+        updatedData.profileImage = await uploadToCloud(req.files.profileImage[0], `doctors/profile`);
+    }
+
+    // 🟢 إدارة الشهادات بدون فقدان الحقل
+    if (certificatesFromBody !== undefined || req.files?.certificates) {
+        let finalCertificates = Array.isArray(doctor.certificates) ? [...doctor.certificates] : [];
+
+        // حذف الشهادات اللي مش موجودة في القائمة الجديدة
+        if (Array.isArray(certificatesFromBody)) {
+            const removedCertificates = finalCertificates.filter(
+                oldCert => !certificatesFromBody.some(newCert => newCert.public_id === oldCert.public_id)
+            );
+            for (const cert of removedCertificates) {
+                if (cert?.public_id) await cloud.uploader.destroy(cert.public_id);
+            }
+            finalCertificates = certificatesFromBody;
+        }
+
+        // إضافة الشهادات الجديدة
+        if (req.files?.certificates) {
+            for (const file of req.files.certificates) {
+                const uploaded = await uploadToCloud(file, `doctors/certificates`);
+                finalCertificates.push(uploaded);
+            }
+        }
+
+        updatedData.certificates = finalCertificates;
+    }
+
+    // 🟢 تحديث البيانات في قاعدة البيانات
+    const updatedDoctor = await DoctorModel.findOneAndUpdate(
+        { _id: id, createdBy: userId },
+        updatedData,
+        { new: true }
+    );
+
+    return res.status(200).json({
+        message: "تم تحديث بيانات الطبيب بنجاح",
+        data: updatedDoctor
+    });
+});
+
+
+
+export const deleteDoctor = asyncHandelr(async (req, res, next) => {
+    const { id } = req.params;
+    const userId = req.user._id;
+
+    // 🔍 جلب الدكتور
+    const doctor = await DoctorModel.findOne({ _id: id, createdBy: userId });
+    if (!doctor) {
+        return next(new Error("لم يتم العثور على بيانات الطبيب أو ليس لديك صلاحية للحذف", { cause: 404 }));
+    }
+
+    // 🗑️ حذف صورة البروفايل من Cloudinary
+    if (doctor.profileImage?.public_id) {
+        await cloud.uploader.destroy(doctor.profileImage.public_id);
+    }
+
+    // 🗑️ حذف الشهادات من Cloudinary
+    if (Array.isArray(doctor.certificates)) {
+        for (const cert of doctor.certificates) {
+            if (cert?.public_id) {
+                await cloud.uploader.destroy(cert.public_id);
+            }
+        }
+    }
+
+    // 🗑️ حذف من قاعدة البيانات
+    await DoctorModel.deleteOne({ _id: id, createdBy: userId });
+
+    return res.status(200).json({
+        message: "تم حذف بيانات الطبيب والصور بنجاح"
+    });
+});
 
 
 
