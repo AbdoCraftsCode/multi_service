@@ -674,6 +674,53 @@ export const getDoctors = asyncHandelr(async (req, res, next) => {
 });
 
 
+export const addAuthorizedUser = asyncHandelr(async (req, res, next) => {
+    const { restaurantId, userId, role } = req.body;
+
+    // تحقق أن المستخدم الحالي هو الـ Owner
+    const restaurant = await RestaurantModell.findOne({
+        _id: restaurantId,
+        createdBy: req.user._id
+    });
+
+    if (!restaurant) {
+        return next(new Error("لا يمكنك تعديل هذا المطعم", { cause: 403 }));
+    }
+
+    // تحقق أن المستخدم موجود
+    const targetUser = await Usermodel.findById(userId);
+    if (!targetUser) {
+        return next(new Error("المستخدم غير موجود", { cause: 404 }));
+    }
+
+    // تحقق إذا كان المستخدم مضاف مسبقاً
+    const alreadyExists = restaurant.authorizedUsers.some(
+        (auth) => auth.user.toString() === userId
+    );
+    if (alreadyExists) {
+        return next(new Error("المستخدم مضاف بالفعل", { cause: 400 }));
+    }
+
+    // إضافة المستخدم المصرح له
+    restaurant.authorizedUsers.push({
+        user: userId,
+        role: role || "manager"
+    });
+    await restaurant.save();
+
+    // إرجاع المطعم مع بيانات المستخدمين المصرح لهم
+    const updatedRestaurant = await RestaurantModell.findById(restaurant._id)
+        .populate("authorizedUsers.user", "fullName email");
+
+    res.status(200).json({
+        message: "تم إضافة المستخدم المصرح له بنجاح",
+        data: updatedRestaurant
+    });
+});
+
+
+
+
 export const getMyDoctorProfile = asyncHandelr(async (req, res, next) => {
     const doctor = await DoctorModel.findOne({ createdBy: req.user._id });
 
@@ -836,7 +883,16 @@ export const createRestaurant = asyncHandelr(async (req, res, next) => {
             public_id: uploaded.public_id
         };
     }
-
+    let uploadedMenuImages = [];
+    if (req.files?.menuImages) {
+        for (const file of req.files.menuImages) {
+            const uploaded = await cloud.uploader.upload(file.path, { folder: "restaurants/menu" });
+            uploadedMenuImages.push({
+                secure_url: uploaded.secure_url,
+                public_id: uploaded.public_id
+            });
+        }
+    }
     // إنشاء المطعم
     const restaurant = await RestaurantModell.create({
         name,
@@ -845,6 +901,7 @@ export const createRestaurant = asyncHandelr(async (req, res, next) => {
         deliveryTime,
         distance,
         image: uploadedImage,
+        menuImages: uploadedMenuImages, 
         isOpen: isOpen ?? true,
         createdBy: req.user._id
     });
@@ -855,6 +912,79 @@ export const createRestaurant = asyncHandelr(async (req, res, next) => {
     });
 });
 
+export const getRestaurants = asyncHandelr(async (req, res, next) => {
+    const { cuisine, name, isOpen, page = 1, limit = 10 } = req.query;
+
+    // تجهيز الفلترة
+    const filter = {};
+    if (cuisine) filter.cuisine = { $regex: cuisine.trim(), $options: "i" };
+    if (name) filter.name = { $regex: name.trim(), $options: "i" };
+    if (isOpen !== undefined) filter.isOpen = isOpen === "true";
+
+    // الحساب
+    const skip = (Number(page) - 1) * Number(limit);
+
+    // جلب البيانات مع بيانات الـ Owner
+    const restaurants = await RestaurantModell.find(filter)
+        .populate({
+            path: "createdBy",
+            select: "fullName email"
+        })
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(Number(limit));
+
+    const total = await RestaurantModell.countDocuments(filter);
+
+    return res.status(200).json({
+        message: "تم جلب المطاعم بنجاح",
+        pagination: {
+            total,
+            page: Number(page),
+            limit: Number(limit),
+            totalPages: Math.ceil(total / limit)
+        },
+        data: restaurants
+    });
+});
+
+
+export const getProductsByRestaurant =asyncHandelr(async (req, res, next) => {
+    const { restaurantId } = req.params;
+    const { name, minPrice, maxPrice, page = 1, limit = 10 } = req.query;
+
+    // الفلترة
+    const filter = { restaurant: restaurantId };
+    if (name) filter.name = { $regex: name.trim(), $options: "i" };
+    if (minPrice !== undefined) filter.price = { ...filter.price, $gte: Number(minPrice) };
+    if (maxPrice !== undefined) filter.price = { ...filter.price, $lte: Number(maxPrice) };
+
+    // الحساب
+    const skip = (Number(page) - 1) * Number(limit);
+
+    // جلب البيانات
+    const products = await ProductModell.find(filter)
+        .populate({
+            path: "createdBy",
+            select: "fullName email" // بيانات صاحب المنتج
+        })
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(Number(limit));
+
+    const total = await ProductModell.countDocuments(filter);
+
+    return res.status(200).json({
+        message: "تم جلب المنتجات بنجاح",
+        pagination: {
+            total,
+            page: Number(page),
+            limit: Number(limit),
+            totalPages: Math.ceil(total / limit)
+        },
+        data: products
+    });
+});
 
 
 export const createProduct = asyncHandelr(async (req, res, next) => {
@@ -863,21 +993,9 @@ export const createProduct = asyncHandelr(async (req, res, next) => {
     name = name?.trim();
     description = description?.trim();
 
-    // ✅ تحقق من صلاحية المستخدم
-    const user = await Usermodel.findById(req.user._id);
-    if (!user || user.accountType !== "Owner") {
-        return next(new Error("غير مسموح لك بإنشاء منتج، يجب أن يكون حسابك Owner", { cause: 403 }));
-    }
-
     // ✅ تحقق من الحقول المطلوبة
     if (!restaurantId || !name || !price) {
         return next(new Error("جميع الحقول الأساسية مطلوبة", { cause: 400 }));
-    }
-
-    // تأكد أن المطعم موجود وملكه نفس المستخدم
-    const restaurant = await RestaurantModell.findOne({ _id: restaurantId, createdBy: req.user._id });
-    if (!restaurant) {
-        return next(new Error("لم يتم العثور على المطعم أو ليس ملكك", { cause: 404 }));
     }
 
     // رفع صور المنتج
@@ -908,7 +1026,6 @@ export const createProduct = asyncHandelr(async (req, res, next) => {
         data: product
     });
 });
-
 
 
 export const sendotpphone = asyncHandelr(async (req, res, next) => {
