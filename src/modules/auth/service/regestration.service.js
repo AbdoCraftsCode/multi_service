@@ -889,7 +889,7 @@ export const deleteDoctor = asyncHandelr(async (req, res, next) => {
 
 
 export const createRestaurant = asyncHandelr(async (req, res, next) => {
-    let { name, cuisine, rating, deliveryTime, distance, isOpen } = req.body;
+    let { name, discripion, phone, cuisine, websiteLink ,rating, deliveryTime, distance, isOpen } = req.body;
 
     // 🧹 تنظيف القيم النصية
     const trimIfString = (val) => typeof val === "string" ? val.trim() : val;
@@ -897,7 +897,9 @@ export const createRestaurant = asyncHandelr(async (req, res, next) => {
     cuisine = trimIfString(cuisine);
     deliveryTime = trimIfString(deliveryTime);
     distance = trimIfString(distance);
-
+    phone = trimIfString(phone);
+    discripion = trimIfString(discripion);
+    websiteLink = trimIfString(websiteLink);
     // ✅ تحقق من صلاحية المستخدم
     const user = await Usermodel.findById(req.user._id);
     if (!user || user.accountType !== "Owner") {
@@ -933,6 +935,9 @@ export const createRestaurant = asyncHandelr(async (req, res, next) => {
     const restaurant = await RestaurantModell.create({
         name,
         cuisine,
+        phone,
+        discripion,
+        websiteLink,
         rating: rating || 0,
         deliveryTime,
         distance,

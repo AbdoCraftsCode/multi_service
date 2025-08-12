@@ -53,6 +53,9 @@ const authorizedUserSchema = new mongoose.Schema({
 // 📌 Restaurant Schema
 const restaurantSchema = new mongoose.Schema({
     name: { type: String, required: true, trim: true },
+    websiteLink: { type: String, trim: true },
+    discripion: { type: String, trim: true },
+    phone: { type: String,  trim: true },
     cuisine: { type: String, required: true, trim: true },
     rating: { type: Number, required: true, min: 0, max: 5 },
     deliveryTime: { type: String, required: true, trim: true },
