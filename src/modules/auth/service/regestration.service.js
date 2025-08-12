@@ -23,6 +23,7 @@ import evaluateModel from "../../../DB/models/evaluate.model.js";
 import RentalPropertyModel from "../../../DB/models/rentalPropertySchema.model.js";
 import DoctorModel from "../../../DB/models/workingHoursSchema.model.js";
 import { ProductModell, RestaurantModell } from "../../../DB/models/productSchema.model.js";
+import { OrderModel } from "../../../DB/models/orderSchema.model.js";
 dotenv.config();
 
 
@@ -1059,6 +1060,31 @@ export const createProduct = asyncHandelr(async (req, res, next) => {
     return res.status(201).json({
         message: "تم إنشاء المنتج بنجاح",
         data: product
+    });
+});
+
+
+export const createOrder = asyncHandelr(async (req, res, next) => {
+    let { restaurantName, contactNumber, websiteLink, additionalNotes, products } = req.body;
+
+    // 🛑 تحقق من الحقول المطلوبة
+    if (!restaurantName || !contactNumber || !products?.length) {
+        return next(new Error("جميع الحقول الأساسية مطلوبة (اسم المطعم، رقم التواصل، المنتجات)", { cause: 400 }));
+    }
+
+    // 🛠 إنشاء الأوردر
+    const order = await OrderModel.create({
+        restaurantName: restaurantName.trim(),
+        contactNumber,
+        websiteLink,
+        additionalNotes,
+        products,
+        createdBy: req.user._id // ⬅ من التوكن
+    });
+
+    res.status(201).json({
+        message: "تم إنشاء الأوردر بنجاح",
+        data: order
     });
 });
 
