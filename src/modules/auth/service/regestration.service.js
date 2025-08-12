@@ -674,6 +674,41 @@ export const getDoctors = asyncHandelr(async (req, res, next) => {
 });
 
 
+export const getOwnerRestaurants = asyncHandelr(async (req, res, next) => {
+    // لازم يكون Owner
+    const user = await Usermodel.findById(req.user._id);
+    if (!user || user.accountType !== "Owner") {
+        return next(new Error("غير مسموح لك، يجب أن يكون حسابك Owner", { cause: 403 }));
+    }
+
+    const restaurants = await RestaurantModell.find({ createdBy: req.user._id })
+        .sort({ createdAt: -1 })
+        .populate("authorizedUsers.user", "fullName email");
+
+    res.status(200).json({
+        message: "تم جلب المطاعم الخاصة بالمالك بنجاح",
+        count: restaurants.length,
+        data: restaurants
+    });
+});
+
+export const getManagerRestaurants = asyncHandelr(async (req, res, next) => {
+    const restaurants = await RestaurantModell.find({
+        "authorizedUsers.user": req.user._id,
+        "authorizedUsers.role": "manager"
+    })
+        .sort({ createdAt: -1 })
+        .populate("createdBy", "fullName email") // عرض المالك
+        .populate("authorizedUsers.user", "fullName email");
+
+    res.status(200).json({
+        message: "تم جلب المطاعم التي أنت مدير فيها بنجاح",
+        count: restaurants.length,
+        data: restaurants
+    });
+});
+
+
 export const addAuthorizedUser = asyncHandelr(async (req, res, next) => {
     const { restaurantId, userId, role } = req.body;
 
@@ -1055,6 +1090,38 @@ export const sendotpphone = asyncHandelr(async (req, res, next) => {
 });
 
 
+export const getMyRestaurantsProducts = asyncHandelr(async (req, res, next) => {
+    const { restaurantId } = req.params;
+
+    if (!restaurantId) {
+        return next(new Error("رقم المطعم مطلوب", { cause: 400 }));
+    }
+
+    // ✅ تحقق إن المطعم موجود والمستخدم مالك أو Manager فيه
+    const restaurant = await RestaurantModell.findOne({
+        _id: restaurantId,
+        $or: [
+            { createdBy: req.user._id },
+            { "authorizedUsers.user": req.user._id, "authorizedUsers.role": "manager" }
+        ]
+    });
+
+    if (!restaurant) {
+        return next(new Error("غير مصرح لك بعرض منتجات هذا المطعم", { cause: 403 }));
+    }
+
+    // 📦 هات المنتجات الخاصة بالمطعم
+    const products = await ProductModell.find({ restaurant: restaurantId })
+        .sort({ createdAt: -1 })
+        .populate("restaurant", "name cuisine")
+        .populate("createdBy", "fullName email");
+
+    res.status(200).json({
+        message: "تم جلب المنتجات بنجاح",
+        count: products.length,
+        data: products
+    });
+});
 
 
 

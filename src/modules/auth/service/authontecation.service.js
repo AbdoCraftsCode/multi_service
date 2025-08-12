@@ -51,6 +51,51 @@ export const login = asyncHandelr(async (req, res, next) => {
     return successresponse(res, "Done", 200, { access_Token, refreshToken, checkUser });
 });
 
+
+
+
+
+export const loginAdmin = asyncHandelr(async (req, res, next) => {
+    const { identifier, password } = req.body; // identifier يمكن أن يكون إيميل أو رقم هاتف
+    console.log(identifier, password);
+
+    const checkUser = await Usermodel.findOne({
+        $or: [{ email: identifier }, { phone: identifier }]
+    });
+
+    if (!checkUser) {
+        return next(new Error("User not found", { cause: 404 }));
+    }
+
+    if (checkUser?.provider === providerTypes.google) {
+        return next(new Error("Invalid account", { cause: 404 }));
+    }
+
+    if (!checkUser.isConfirmed) {
+        return next(new Error("Please confirm your email tmm ", { cause: 404 }));
+    }
+
+    // 🔒 شرط السماح بالدخول فقط لـ Owner أو Admin
+    if (!["Owner", "Admin"].includes(checkUser.accountType)) {
+        return next(new Error("غير مسموح لك بتسجيل الدخول", { cause: 403 }));
+    }
+
+    if (!comparehash({ planText: password, valuehash: checkUser.password })) {
+        return next(new Error("Password is incorrect", { cause: 404 }));
+    }
+
+    const access_Token = generatetoken({
+        payload: { id: checkUser._id },
+    });
+
+    const refreshToken = generatetoken({
+        payload: { id: checkUser._id },
+        expiresIn: "365d"
+    });
+
+    return successresponse(res, "Done", 200, { access_Token, refreshToken, checkUser });
+});
+
 // export const loginwithGmail = asyncHandelr(async (req, res, next) => {
 //     const { idToken } = req.body;
 //     const client = new OAuth2Client();
