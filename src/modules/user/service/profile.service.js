@@ -8,7 +8,9 @@ import { MessageModel } from "../../../DB/models/message.model.js";
 import { ProductModel } from "../../../DB/models/product.model.js";
 import { FavoriteModel } from "../../../DB/models/favourite.model.js";
 
+import dotenv from "dotenv";
 
+dotenv.config();
 import fs from 'fs';
 import admin from 'firebase-admin';
 
@@ -543,7 +545,7 @@ async function sendNotification(deviceToken, title, body) {
     }
 }
 
-// sendNotification('ftrRnnUPRfKrE41oSTUcz7:APA91bGDa5hYvCiGIM2yRlqIOcq5D_kYpDsueiPrFlJZ5vyHNT9hCKIG7sYVyEf2ZNZsfEHv9kREmzCYSfoeq82fyjl47orndHZFHfSpCLEH29obiHam1-k', 'عنوان الإشعار', 'نص الإشعار هنا');
+sendNotification('ftrRnnUPRfKrE41oSTUcz7:APA91bGDa5hYvCiGIM2yRlqIOcq5D_kYpDsueiPrFlJZ5vyHNT9hCKIG7sYVyEf2ZNZsfEHv9kREmzCYSfoeq82fyjl47orndHZFHfSpCLEH29obiHam1-k', 'عنوان الإشعار', 'نص الإشعار هنا');
 
 export const savetoken = asyncHandelr(async (req, res, next) => {
     const { userId, fcmToken } = req.body;
