@@ -9,7 +9,8 @@ import { ProductModel } from "../../../DB/models/product.model.js";
 import { FavoriteModel } from "../../../DB/models/favourite.model.js";
 
 
-
+import fs from 'fs';
+import admin from 'firebase-admin';
 
 export const Updateuseraccount = asyncHandelr(async (req, res, next) => {
     const user = await dbservice.findOne({
@@ -511,3 +512,72 @@ export const getUserFavorites = async (req, res, next) => {
     }
 };
 
+
+
+admin.initializeApp({
+    credential: admin.credential.cert({
+        type: process.env.FIREBASE_TYPE,
+        project_id: process.env.FIREBASE_PROJECT_ID,
+        private_key_id: process.env.FIREBASE_PRIVATE_KEY_ID,
+        private_key: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+        client_email: process.env.FIREBASE_CLIENT_EMAIL,
+        client_id: process.env.FIREBASE_CLIENT_ID,
+        auth_uri: process.env.FIREBASE_AUTH_URI,
+        token_uri: process.env.FIREBASE_TOKEN_URI,
+        auth_provider_x509_cert_url: process.env.FIREBASE_AUTH_PROVIDER_CERT_URL,
+        client_x509_cert_url: process.env.FIREBASE_CLIENT_CERT_URL,
+        universe_domain: process.env.FIREBASE_UNIVERSE_DOMAIN,
+    }),
+});
+async function sendNotification(deviceToken, title, body) {
+    const message = {
+        notification: { title, body },
+        token: deviceToken,
+    };
+
+    try {
+        const response = await admin.messaging().send(message);
+        console.log('✅ تم إرسال الإشعار:', response);
+    } catch (error) {
+        console.error('❌ فشل إرسال الإشعار:', error);
+    }
+}
+
+// sendNotification('ftrRnnUPRfKrE41oSTUcz7:APA91bGDa5hYvCiGIM2yRlqIOcq5D_kYpDsueiPrFlJZ5vyHNT9hCKIG7sYVyEf2ZNZsfEHv9kREmzCYSfoeq82fyjl47orndHZFHfSpCLEH29obiHam1-k', 'عنوان الإشعار', 'نص الإشعار هنا');
+
+export const savetoken = asyncHandelr(async (req, res, next) => {
+    const { userId, fcmToken } = req.body;
+
+    if (!userId || !fcmToken) {
+        return res.status(400).json({ message: "userId و fcmToken مطلوبين" });
+    }
+
+    try {
+        await Usermodel.findByIdAndUpdate(userId, { fcmToken });
+        res.json({ message: "تم حفظ التوكن بنجاح" });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "حدث خطأ أثناء حفظ التوكن" });
+    }
+
+});
+
+
+export const deleteFcmToken = asyncHandelr(async (req, res) => {
+    const userId = req.user._id;
+
+    try {
+        const user = await Usermodel.findById(userId);
+        if (!user) {
+            return res.status(404).json({ message: "❌ المستخدم غير موجود!" });
+        }
+
+        user.fcmToken = null; // 🧹 حذف التوكن
+        await user.save();
+
+        res.status(200).json({ message: "✅ تم حذف FCM Token بنجاح" });
+    } catch (error) {
+        console.error("❌ خطأ أثناء حذف التوكن:", error);
+        res.status(500).json({ message: "حدث خطأ أثناء حذف التوكن", error: error.message });
+    }
+});

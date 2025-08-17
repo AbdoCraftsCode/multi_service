@@ -84,7 +84,8 @@ const userSchema = new Schema({
         type: String,
         enum: ['DriverProfile', 'DoctorProfile', 'HostProfile', 'DeliveryProfile'],
     },
-
+    fcmToken: { type: String, default: null },
+    userId: String,
     // OTPs
     emailOTP: String,
     forgetpasswordOTP: String,

@@ -7,7 +7,7 @@ import usercontroller from "./modules/user/user.controller.js"
 // import jopcontroller from "./modules/jops/jop.controller.js"
 // import admincontroller from "./modules/admin/admin.controller.js"
 import chatcontroller from "./modules/chat/chat.controller.js"
-import categorycontroller from "./modules/product/catewgory.controller.js"
+// import categorycontroller from "./modules/product/catewgory.controller.js"
 import productiontroller from "./modules/production/production.controller.js"
 import cors from 'cors';
 
@@ -17,7 +17,7 @@ export const bootstap = (app , express) => {
     app.use(express.json())
     connectDB();
     app.use("/auth", authcontroller)
-    app.use("/category", categorycontroller)
+    // app.use("/category", categorycontroller)
     app.use("/user", usercontroller)
     // app.use("/company", companycontroller)
     // app.use("/jop", jopcontroller)
