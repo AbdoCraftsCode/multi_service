@@ -19,10 +19,10 @@ const productSchema = new mongoose.Schema({
 });
 
 const orderSchema = new mongoose.Schema({
-    restaurantName: {
-        type: String,
-        required: true,
-        trim: true
+    restaurant: { // ⬅️ بدل restaurantName
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Restauranttt",
+        required: true
     },
     contactNumber: {
         type: String,

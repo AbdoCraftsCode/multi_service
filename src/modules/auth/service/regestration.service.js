@@ -1070,18 +1070,24 @@ export const createProduct = asyncHandelr(async (req, res, next) => {
 
 
 export const createOrder = asyncHandelr(async (req, res, next) => {
-    let { restaurantName, contactNumber, websiteLink, additionalNotes, products } = req.body;
+    let { restaurantId, contactNumber, websiteLink, additionalNotes, products } = req.body; // ⬅️ restaurantId بدل name
 
     // 🛑 تحقق من الحقول المطلوبة
-    if (!restaurantName || !contactNumber || !products?.length) {
-        return next(new Error("جميع الحقول الأساسية مطلوبة (اسم المطعم، رقم التواصل، المنتجات)", { cause: 400 }));
+    if (!restaurantId || !contactNumber || !products?.length) {
+        return next(new Error("جميع الحقول الأساسية مطلوبة (المطعم، رقم التواصل، المنتجات)", { cause: 400 }));
+    }
+
+    // ✅ تأكد أن المطعم موجود
+    const restaurant = await RestaurantModell.findById(restaurantId);
+    if (!restaurant) {
+        return next(new Error("المطعم غير موجود", { cause: 404 }));
     }
 
     // 🛠 إنشاء الأوردر
     const order = await OrderModel.create({
-        restaurantName: restaurantName.trim(),
-        contactNumber,
-        websiteLink,
+        restaurant: restaurant._id, // ⬅️ هنا
+        contactNumber: contactNumber || restaurant.phone, // ⬅️ ممكن نسحب من المطعم
+        websiteLink: websiteLink || restaurant.websiteLink, // ⬅️ ممكن نسحب من المطعم
         additionalNotes,
         products,
         createdBy: req.user._id // ⬅ من التوكن
@@ -1092,6 +1098,38 @@ export const createOrder = asyncHandelr(async (req, res, next) => {
         data: order
     });
 });
+
+export const getRestaurantOrders = asyncHandelr(async (req, res, next) => {
+    const { restaurantId } = req.params; // ⬅️ ناخد id من params
+
+    if (!restaurantId) {
+        return next(new Error("يجب إدخال معرف المطعم (restaurantId)", { cause: 400 }));
+    }
+
+    // ✅ تأكد أن المطعم موجود
+    const restaurant = await RestaurantModell.findById(restaurantId);
+    if (!restaurant) {
+        return next(new Error("المطعم غير موجود", { cause: 404 }));
+    }
+
+    // ✅ هات كل الأوردرات الخاصة بالمطعم
+    const orders = await OrderModel.find({ restaurant: restaurantId })
+        .sort({ createdAt: -1 })
+        .populate("restaurant", "name phone websiteLink") // بيانات المطعم
+        .populate("createdBy", "fullName email"); // بيانات العميل/الي عمل الأوردر
+
+    if (!orders.length) {
+        return next(new Error("لا توجد طلبات لهذا المطعم", { cause: 404 }));
+    }
+
+    res.status(200).json({
+        message: "تم جلب الطلبات بنجاح",
+        count: orders.length,
+        data: orders
+    });
+});
+
+
 
 
 export const sendotpphone = asyncHandelr(async (req, res, next) => {
