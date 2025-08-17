@@ -1134,7 +1134,41 @@ export const getRestaurantOrders = asyncHandelr(async (req, res, next) => {
     });
 });
 
+export const updateOrderStatus = asyncHandelr(async (req, res, next) => {
+    const { orderId } = req.params;
+    const { status } = req.body; // accepted | rejected
 
+    if (!["accepted", "rejected"].includes(status)) {
+        return res.status(400).json({
+            success: false,
+            message: "❌ الحالة المسموح بها فقط: accepted أو rejected"
+        });
+    }
+
+    const order = await OrderModel.findById(orderId);
+    if (!order) {
+        return res.status(404).json({
+            success: false,
+            message: "❌ الطلب غير موجود"
+        });
+    }
+
+    if (order.status !== "pending") {
+        return res.status(400).json({
+            success: false,
+            message: `❌ لا يمكن تغيير حالة الطلب لأنه بالفعل ${order.status}`
+        });
+    }
+
+    order.status = status;
+    await order.save();
+
+    res.status(200).json({
+        success: true,
+        message: `✅ تم تغيير حالة الطلب إلى ${status}`,
+        // data: order
+    });
+});
 
 
 export const sendotpphone = asyncHandelr(async (req, res, next) => {
