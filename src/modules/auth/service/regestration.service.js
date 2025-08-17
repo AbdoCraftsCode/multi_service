@@ -694,20 +694,25 @@ export const getOwnerRestaurants = asyncHandelr(async (req, res, next) => {
 });
 
 export const getManagerRestaurants = asyncHandelr(async (req, res, next) => {
-    const restaurants = await RestaurantModell.find({
+    const restaurant = await RestaurantModell.findOne({
         "authorizedUsers.user": req.user._id,
         "authorizedUsers.role": "manager"
     })
         .sort({ createdAt: -1 })
-        .populate("createdBy", "fullName email") // عرض المالك
+        .populate("createdBy", "fullName email")
         .populate("authorizedUsers.user", "fullName email");
+
+    if (!restaurant) {
+        return next(new Error("لا يوجد مطاعم أنت مدير فيها", { cause: 404 }));
+    }
 
     res.status(200).json({
         message: "تم جلب المطاعم التي أنت مدير فيها بنجاح",
-        count: restaurants.length,
-        data: restaurants
+        count: 1,
+        data: restaurant   // ⬅️ object مباشر مش array
     });
 });
+
 
 
 export const addAuthorizedUser = asyncHandelr(async (req, res, next) => {
