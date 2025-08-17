@@ -65,7 +65,7 @@ const userSchema = new Schema({
 
     accountType: {
         type: String,
-        enum: ['User', 'ServiceProvider','Owner'],
+        enum: ['User', 'ServiceProvider', 'Owner', 'manager'],
         required: true
     },
 
