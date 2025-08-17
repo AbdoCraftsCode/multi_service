@@ -44,6 +44,12 @@ const orderSchema = new mongoose.Schema({
         ref: "User",
         required: true
     },
+
+    status: { // ⬅️ الحالة
+        type: String,
+        enum: ["pending", "accepted", "rejected"],
+        default: "pending"
+    },
 }, { timestamps: true });
 
 export const OrderModel = mongoose.model("Orderrr", orderSchema);
