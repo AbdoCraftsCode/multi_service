@@ -27,6 +27,7 @@ import { OrderModel } from "../../../DB/models/orderSchema.model.js";
 import { NotificationModell } from "../../../DB/models/notificationSchema.js";
 dotenv.config();
 import admin from 'firebase-admin';
+import { AppointmentModel } from "../../../DB/models/appointmentSchema.js";
 
 const AUTHENTICA_API_KEY = process.env.AUTHENTICA_API_KEY || "$2y$10$q3BAdOAyWapl3B9YtEVXK.DHmJf/yaOqF4U.MpbBmR8bwjSxm4A6W";
 const AUTHENTICA_OTP_URL = "https://api.authentica.sa/api/v1/send-otp";
@@ -562,12 +563,12 @@ export const createDoctor = asyncHandelr(async (req, res, next) => {
         location,
         mapLink,
         titles,
-        medicalField,
+        // medicalField,
         workingHours,
         rating,
         reviewCount,
-        latitude,
-        longitude,
+        // latitude,
+        // longitude,
         experience,
         consultationFee,
         hospitalName
@@ -580,12 +581,12 @@ export const createDoctor = asyncHandelr(async (req, res, next) => {
     specialization = trimIfString(specialization);
     location = trimIfString(location);
     mapLink = trimIfString(mapLink);
-    medicalField = trimIfString(medicalField);
+    // medicalField = trimIfString(medicalField);
     experience = trimIfString(experience);
     hospitalName = trimIfString(hospitalName);
 
     // تحقق من الحقول المطلوبة
-    if (!name || !specialization || !location || !medicalField || !latitude || !longitude || !hospitalName) {
+    if (!name || !specialization || !location ||   !hospitalName) {
         return next(new Error("جميع الحقول الأساسية مطلوبة", { cause: 400 }));
     }
 
@@ -624,14 +625,14 @@ export const createDoctor = asyncHandelr(async (req, res, next) => {
         location,
         mapLink,
         titles: titles ? JSON.parse(titles) : [],
-        medicalField,
+        // medicalField,
         certificates: uploadedFiles.certificates || [],
         workingHours: workingHours ? JSON.parse(workingHours) : {},
         rating: rating || 0,
         reviewCount: reviewCount || 0,
         profileImage: uploadedFiles.profileImage || null,
-        latitude,
-        longitude,
+        // latitude,
+        // longitude,
         experience,
         consultationFee,
         createdBy: req.user._id,
@@ -1168,6 +1169,81 @@ export const createOrder = asyncHandelr(async (req, res, next) => {
     });
 });
 
+
+export const createAppointment = asyncHandelr(async (req, res, next) => {
+    const { doctorId, date, time, additionalNotes } = req.body;
+
+    // ✅ تحقق من الحقول
+    if (!doctorId || !date || !time) {
+        return next(new Error("جميع الحقول الأساسية مطلوبة (الدكتور، اليوم، الوقت)", { cause: 400 }));
+    }
+
+    // ✅ تأكد أن الدكتور موجود ومعاه fcmToken
+    const doctor = await DoctorModel.findById(doctorId)
+        .populate("createdBy", "fullName fcmToken"); // صاحب البروفايل (الدكتور نفسه)
+
+    if (!doctor) {
+        return next(new Error("الدكتور غير موجود", { cause: 404 }));
+    }
+
+    // 🛠 إنشاء الحجز
+    const appointment = await AppointmentModel.create({
+        doctor: doctor._id,
+        patient: req.user._id,
+        date,
+        time,
+        additionalNotes,
+    });
+
+    // 📌 تجهيز المستقبل (الدكتور)
+    const recipients = [];
+
+    if (doctor.createdBy?.fcmToken) {
+        recipients.push({
+            user: doctor.createdBy._id,
+            fcmToken: doctor.createdBy.fcmToken,
+        });
+    }
+
+    // 🛑 لو مفيش fcmToken
+    if (!recipients.length) {
+        console.log("⚠️ مفيش حد ليه توكن يوصله إشعار");
+    } else {
+        const title = "📅 حجز جديد";
+        const body = `تم استلام حجز جديد مع الدكتور ${doctor.name} في ${date} - ${time}`;
+
+        for (const recipient of recipients) {
+            try {
+                await admin.messaging().send({
+                    notification: { title, body },
+                    data: {
+                        appointmentId: appointment._id.toString(),
+                        doctorId: doctor._id.toString(),
+                        createdAt: appointment.createdAt.toISOString()
+                    },
+                    token: recipient.fcmToken,
+                });
+
+                console.log(`✅ تم إرسال إشعار للدكتور ${recipient.user}`);
+
+                await NotificationModell.create({
+                    restaurant: null, // هنا مش مطعم
+                    order: null, // مش أوردر
+                    title,
+                    body,
+                    deviceToken: recipient.fcmToken,
+                });
+            } catch (error) {
+                console.error("❌ فشل إرسال الإشعار:", error);
+            }
+        }
+    }
+
+    res.status(201).json({
+        message: "تم إنشاء الحجز بنجاح",
+        data: appointment
+    });
+});
 
 export const getNotificationsByRestaurant = async (req, res) => {
     try {

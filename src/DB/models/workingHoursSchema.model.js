@@ -18,15 +18,15 @@ const doctorSchema = new Schema({
     mapLink: { type: String },
 
     titles: [{ type: String }], // مثال: ["MD", "PhD"]
-    medicalField: {
-        type: String,
-        enum: [
-            'Cardiology', 'Neurology', 'Pediatrics', 'Dermatology', 'Orthopedics',
-            'Psychiatry', 'Gynecology', 'Urology', 'Ophthalmology', 'Dentistry',
-            'General Medicine', 'Surgery'
-        ],
-        required: true
-    },
+    // medicalField: {
+    //     type: String,
+    //     enum: [
+    //         'Cardiology', 'Neurology', 'Pediatrics', 'Dermatology', 'Orthopedics',
+    //         'Psychiatry', 'Gynecology', 'Urology', 'Ophthalmology', 'Dentistry',
+    //         'General Medicine', 'Surgery'
+    //     ],
+    //     required: true
+    // },
     createdBy: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "User",
@@ -45,8 +45,8 @@ const doctorSchema = new Schema({
 
     profileImage: imageSchema, // صورة البروفايل
 
-    latitude: { type: Number, required: true },
-    longitude: { type: Number, required: true },
+    // latitude: { type: Number, required: true },
+    // longitude: { type: Number, required: true },
 
     distanceFromUser: { type: Number }, // يتم حسابه وليس تخزينه
 
