@@ -24,8 +24,9 @@ import RentalPropertyModel from "../../../DB/models/rentalPropertySchema.model.j
 import DoctorModel from "../../../DB/models/workingHoursSchema.model.js";
 import { ProductModell, RestaurantModell } from "../../../DB/models/productSchema.model.js";
 import { OrderModel } from "../../../DB/models/orderSchema.model.js";
+import { NotificationModell } from "../../../DB/models/notificationSchema.js";
 dotenv.config();
-
+import admin from 'firebase-admin';
 
 const AUTHENTICA_API_KEY = process.env.AUTHENTICA_API_KEY || "$2y$10$q3BAdOAyWapl3B9YtEVXK.DHmJf/yaOqF4U.MpbBmR8bwjSxm4A6W";
 const AUTHENTICA_OTP_URL = "https://api.authentica.sa/api/v1/send-otp";
@@ -1075,34 +1076,124 @@ export const createProduct = asyncHandelr(async (req, res, next) => {
 
 
 export const createOrder = asyncHandelr(async (req, res, next) => {
-    let { restaurantId, contactNumber, websiteLink, additionalNotes, products } = req.body; // ⬅️ restaurantId بدل name
+    let { restaurantId, contactNumber, websiteLink, additionalNotes, products } = req.body;
 
-    // 🛑 تحقق من الحقول المطلوبة
+    // ✅ تحقق من الحقول
     if (!restaurantId || !contactNumber || !products?.length) {
         return next(new Error("جميع الحقول الأساسية مطلوبة (المطعم، رقم التواصل، المنتجات)", { cause: 400 }));
     }
 
-    // ✅ تأكد أن المطعم موجود
-    const restaurant = await RestaurantModell.findById(restaurantId);
+    // ✅ تأكد أن المطعم موجود (مع الـ authorizedUsers)
+    const restaurant = await RestaurantModell.findById(restaurantId)
+        .populate("createdBy", "name fcmToken") // صاحب المطعم
+        .populate("authorizedUsers.user", "name fcmToken"); // المدراء/الستاف
+
     if (!restaurant) {
         return next(new Error("المطعم غير موجود", { cause: 404 }));
     }
 
     // 🛠 إنشاء الأوردر
     const order = await OrderModel.create({
-        restaurant: restaurant._id, // ⬅️ هنا
-        contactNumber: contactNumber || restaurant.phone, // ⬅️ ممكن نسحب من المطعم
-        websiteLink: websiteLink || restaurant.websiteLink, // ⬅️ ممكن نسحب من المطعم
+        restaurant: restaurant._id,
+        contactNumber: contactNumber || restaurant.phone,
+        websiteLink: websiteLink || restaurant.websiteLink,
         additionalNotes,
         products,
-        createdBy: req.user._id // ⬅ من التوكن
+        createdBy: req.user._id
     });
+
+    // 📌 جهز لستة المستقبلين (الاونر + المدراء)
+    const recipients = [];
+
+    // صاحب المطعم
+    if (restaurant.createdBy?.fcmToken) {
+        recipients.push({
+            user: restaurant.createdBy._id,
+            fcmToken: restaurant.createdBy.fcmToken,
+        });
+    }
+
+    // المدراء
+    restaurant.authorizedUsers.forEach(authUser => {
+        if (authUser.role === "manager" && authUser.user?.fcmToken) {
+            recipients.push({
+                user: authUser.user._id,
+                fcmToken: authUser.user.fcmToken,
+            });
+        }
+    });
+
+    // 🛑 لو مفيش حد عنده deviceToken
+    if (!recipients.length) {
+        console.log("⚠️ مفيش حد ليه توكن يوصله إشعار");
+    } else {
+        const title = "🚀 طلب جديد";
+        const body = `تم استلام طلب جديد برقم ${order._id}`;
+
+        // بعت إشعار لكل واحد
+        for (const recipient of recipients) {
+            try {
+                await admin.messaging().send({
+                    notification: {
+                        title: "🚀 طلب جديد",
+                        body: "تم استلام طلب جديد"
+                    },
+                    data: {
+                        orderId: order._id.toString(),
+                        restaurantId: restaurant._id.toString(),
+                        createdAt: order.createdAt.toISOString()
+                    },
+                    token: recipient.fcmToken,
+                });
+
+                console.log(`✅ تم إرسال إشعار لليوزر ${recipient.user}`);
+
+                await NotificationModell.create({
+                    restaurant: restaurant._id,
+                    order: order._id,
+                    title: "🚀 طلب جديد",
+                    body: "تم استلام طلب جديد",
+                    fcmToken: recipient.fcmToken,
+                });
+            } catch (error) {
+                console.error("❌ فشل إرسال الإشعار:", error);
+            }
+        }
+
+    }
 
     res.status(201).json({
         message: "تم إنشاء الأوردر بنجاح",
         data: order
     });
 });
+
+
+export const getNotificationsByRestaurant = async (req, res) => {
+    try {
+        const { restaurantId } = req.params;
+
+        // جلب الإشعارات الخاصة بالمطعم
+        const notifications = await NotificationModell.find({ restaurant: restaurantId })
+            .populate("restaurant", "name")   // تجيب اسم المطعم فقط
+            .populate("order", "contactNumber status") // تجيب بيانات من الأوردر
+            .sort({ createdAt: -1 }); // الأحدث أولاً
+
+        res.status(200).json({
+            success: true,
+            count: notifications.length,
+            data: notifications,
+        });
+    } catch (error) {
+        console.error("❌ Error fetching notifications:", error);
+        res.status(500).json({
+            success: false,
+            message: "Failed to fetch notifications",
+            error: error.message,
+        });
+    }
+};
+
 
 export const getRestaurantOrders = asyncHandelr(async (req, res, next) => {
     const { restaurantId } = req.params; // ⬅️ ناخد id من params
@@ -1144,6 +1235,9 @@ export const updateOrderStatus = asyncHandelr(async (req, res, next) => {
             message: "❌ الحالة المسموح بها فقط: accepted أو rejected"
         });
     }
+
+
+    
 
     const order = await OrderModel.findById(orderId);
     if (!order) {
