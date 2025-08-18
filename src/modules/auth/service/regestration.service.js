@@ -1194,6 +1194,32 @@ export const getNotificationsByRestaurant = async (req, res) => {
     }
 };
 
+export const markAllNotificationsAsRead = async (req, res) => {
+    try {
+        const { restaurantId } = req.params;
+
+        // تحديث كل الإشعارات الخاصة بالمطعم كـ "مقروءة"
+        const result = await NotificationModell.updateMany(
+            { restaurant: restaurantId, isRead: false }, // فقط غير المقروء
+            { $set: { isRead: true } }
+        );
+
+        res.status(200).json({
+            success: true,
+            message: "✅ تم تعليم كل الإشعارات كمقروءة",
+            modifiedCount: result.modifiedCount
+        });
+    } catch (error) {
+        console.error("❌ Error marking notifications as read:", error);
+        res.status(500).json({
+            success: false,
+            message: "Failed to mark notifications as read",
+            error: error.message,
+        });
+    }
+};
+
+
 
 export const getRestaurantOrders = asyncHandelr(async (req, res, next) => {
     const { restaurantId } = req.params; // ⬅️ ناخد id من params
