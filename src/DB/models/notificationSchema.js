@@ -2,8 +2,8 @@
 import mongoose from "mongoose";
 
 const notificationSchema = new mongoose.Schema({
-    restaurant: { type: mongoose.Schema.Types.ObjectId, ref: "Restauranttt", required: true },
-    order: { type: mongoose.Schema.Types.ObjectId, ref: "Orderrr", required: true },
+    restaurant: { type: mongoose.Schema.Types.ObjectId, ref: "Restauranttt",  },
+    order: { type: mongoose.Schema.Types.ObjectId, ref: "Orderrr",  },
     title: String,
     body: String,
     deviceToken: String,

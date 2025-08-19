@@ -1227,14 +1227,22 @@ export const createAppointment = asyncHandelr(async (req, res, next) => {
                 console.log(`✅ تم إرسال إشعار للدكتور ${recipient.user}`);
 
                 await NotificationModell.create({
-                    restaurant: null, // هنا مش مطعم
-                    order: null, // مش أوردر
+                    restaurant: null,
+                    order: null,
                     title,
                     body,
-                    deviceToken: recipient.fcmToken,
+                    fcmToken: recipient.fcmToken,
                 });
             } catch (error) {
-                console.error("❌ فشل إرسال الإشعار:", error);
+                if (error.code === "messaging/registration-token-not-registered") {
+                    console.warn(`⚠️ توكن غير صالح: ${recipient.fcmToken} - هيتم مسحه`);
+                    await Usermodel.updateOne(
+                        { _id: recipient.user },
+                        { $set: { fcmToken: null } }
+                    );
+                } else {
+                    console.error("❌ فشل إرسال الإشعار:", error);
+                }
             }
         }
     }
@@ -1244,6 +1252,30 @@ export const createAppointment = asyncHandelr(async (req, res, next) => {
         data: appointment
     });
 });
+
+export const getDoctorAppointments = asyncHandelr(async (req, res, next) => {
+    // 👨‍⚕️ doctorId جاي من الـ params
+    const { doctorId } = req.params;
+
+    // ✅ تأكد أن الدكتور موجود
+    const doctor = await DoctorModel.findById(doctorId);
+    if (!doctor) {
+        return next(new Error("الدكتور غير موجود", { cause: 404 }));
+    }
+
+    // 🛠 هجيب كل الحجوزات الخاصة بالدكتور ده
+    const appointments = await AppointmentModel.find({ doctor: doctorId })
+        .populate("doctor", "name specialty")
+        .populate("patient", "fullName email phone")
+        .sort({ createdAt: -1 });
+
+    res.status(200).json({
+        message: "تم جلب الحجوزات الخاصة بالدكتور بنجاح",
+        count: appointments.length,
+        data: appointments
+    });
+});
+
 
 export const getNotificationsByRestaurant = async (req, res) => {
     try {
