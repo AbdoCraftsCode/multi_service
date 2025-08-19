@@ -1227,7 +1227,7 @@ export const createAppointment = asyncHandelr(async (req, res, next) => {
                 console.log(`✅ تم إرسال إشعار للدكتور ${recipient.user}`);
 
                 await NotificationModell.create({
-                    restaurant: null,
+                    restaurant: doctor._id,
                     order: null,
                     title,
                     body,
