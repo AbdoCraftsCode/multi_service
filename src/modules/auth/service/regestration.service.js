@@ -1302,6 +1302,36 @@ export const getNotificationsByRestaurant = async (req, res) => {
     }
 };
 
+
+
+export const getNotificationsByDoctor = async (req, res) => {
+    try {
+        const { doctorId } = req.params;
+
+        // جلب الإشعارات الخاصة بالمطعم
+        const notifications = await NotificationModell.find({ restaurant: doctorId })
+            .populate("restaurant", "name")   // تجيب اسم المطعم فقط
+
+            .sort({ createdAt: -1 }); // الأحدث أولاً
+
+        res.status(200).json({
+            success: true,
+            count: notifications.length,
+            data: notifications,
+        });
+    } catch (error) {
+        console.error("❌ Error fetching notifications:", error);
+        res.status(500).json({
+            success: false,
+            message: "Failed to fetch notifications",
+            error: error.message,
+        });
+    }
+};
+
+
+
+
 export const markAllNotificationsAsRead = async (req, res) => {
     try {
         const { restaurantId } = req.params;
@@ -1327,6 +1357,31 @@ export const markAllNotificationsAsRead = async (req, res) => {
     }
 };
 
+
+export const markAllNotificationsAsReadDoctor = async (req, res) => {
+    try {
+        const { doctorId } = req.params;
+
+        // تحديث كل الإشعارات الخاصة بالمطعم كـ "مقروءة"
+        const result = await NotificationModell.updateMany(
+            { restaurant: doctorId, isRead: false }, // فقط غير المقروء
+            { $set: { isRead: true } }
+        );
+
+        res.status(200).json({
+            success: true,
+            message: "✅ تم تعليم كل الإشعارات كمقروءة",
+            modifiedCount: result.modifiedCount
+        });
+    } catch (error) {
+        console.error("❌ Error marking notifications as read:", error);
+        res.status(500).json({
+            success: false,
+            message: "Failed to mark notifications as read",
+            error: error.message,
+        });
+    }
+};
 
 
 export const getRestaurantOrders = asyncHandelr(async (req, res, next) => {
