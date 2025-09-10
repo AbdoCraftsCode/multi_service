@@ -32,7 +32,7 @@ const doctorSchema = new Schema({
         ref: "User",
         default: null
     },
-
+ 
     certificates: [imageSchema], // صور الشهادات من Cloudinary
 
     workingHours: {

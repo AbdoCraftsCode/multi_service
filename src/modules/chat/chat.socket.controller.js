@@ -1,6 +1,6 @@
 import { Server } from "socket.io";
 import { logoutSocket, regiserSocket } from "./chat/chat.auth.service.js";
-import { sendMessage } from "./chat/message.service.js";
+import { driverLocationUpdate, sendMessage } from "./chat/message.service.js";
 
 
 
@@ -18,6 +18,7 @@ export const runIo = (httpServer) => {
         console.log(socket.handshake.auth);
         await sendMessage(socket);
         await regiserSocket(socket);
+        await driverLocationUpdate(socket);
         await logoutSocket(socket);
     });
 

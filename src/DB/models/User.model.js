@@ -119,13 +119,27 @@ const userSchema = new Schema({
         secure_url: String,
         public_id: String
     },
+
+
+    location: {
+        type: {
+            type: String,
+            enum: ["Point"],
+            default: "Point"
+        },
+        coordinates: {
+            type: [Number], // [longitude, latitude]
+            default: [0, 0]
+        }
+    },
 }, {
     timestamps: true,
     toJSON: { virtuals: true },
     toObject: { virtuals: true }
-});
+}); 
 
 const Usermodel = mongoose.model("User", userSchema);
+userSchema.index({ location: "2dsphere" });
 export default Usermodel;
 
 export const scketConnections = new Map();

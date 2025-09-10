@@ -228,6 +228,13 @@ export const signupServiceProvider = asyncHandelr(async (req, res, next) => {
             phone,
             accountType,
             serviceType,
+            location: {
+                type: "Point",
+                coordinates: [
+                    req.body.longitude || 0,  // ← خط الطول
+                    req.body.latitude || 0    // ← خط العرض
+                ]
+            },
             ...uploadedFiles,
         },
     });
@@ -250,6 +257,47 @@ export const signupServiceProvider = asyncHandelr(async (req, res, next) => {
 });
 
 
+
+
+
+export const findNearbyDrivers = asyncHandelr(async (req, res, next) => {
+    const { longitude, latitude } = req.body;
+
+    if (!longitude || !latitude) {
+        return next(new Error("مطلوب إرسال خط الطول والعرض", { cause: 400 }));
+    } 
+
+    const drivers = await Usermodel.aggregate([
+        {
+            $geoNear: {
+                near: {
+                    type: "Point",
+                    coordinates: [longitude, latitude]
+                },
+                distanceField: "distance", // ← اسم الفيلد الجديد
+                spherical: true,
+                maxDistance: 100000 // ← 5 كم
+            }
+        },
+        {
+            $match: { serviceType: "Driver" }
+        },
+        {
+            $project: {
+                fullName: 1,
+                email: 1,
+                "profiePicture.secure_url": 1,
+                distance: { $divide: ["$distance", 1000] } // ← تحويل من متر إلى كم
+            }
+        }
+    ]);
+
+    res.status(200).json({
+        message: "🚖 أقرب السائقين",
+        count: drivers.length,
+        data: drivers
+    });
+});
 
 
 

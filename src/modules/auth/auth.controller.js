@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { validation } from "../../middlewere/validation.middlewere.js";
 import  * as validators from "../auth/auth.validate.js"
-import { addAuthorizedUser, confirmOTP, createAdminUser, createAppointment, createBranch, createDoctor, createEvaluation, createMainGroup, createMode, createOrder, createPermissions, createProduct, createQuestion, createRentalProperty, createRestaurant, createSubGroup, deleteAdminUser, deleteBranch, deleteDoctor, deleteMainGroup, deletePermission, deleteRentalProperty, deleteSingleQuestion, deleteSubGroup, getAllAdminUsers, getAllNormalUsers, getAllPermissions, getAllRentalProperties, getAllServiceProviders, getBranches, getDoctorAppointments, getDoctors, getEvaluations, getMainGroupsForUser, getMainGroupsWithSubGroups, getManagerRestaurants, getMyDoctorProfile, getMyEvaluations, getMyRestaurantsProducts, getMySubGroups, getNotificationsByDoctor, getNotificationsByRestaurant, getOwnerRestaurants, getProductsByRestaurant, getQuestionsByMainGroups, getRestaurantOrders, getRestaurants, getSubGroupsByMainGroup, getUserRentalProperties, markAllNotificationsAsRead, markAllNotificationsAsReadDoctor, registerRestaurant, sendotpphone, signup, signupServiceProvider, signupwithGmail, updateAdminUser, updateBranch, updateDoctor, updateMainGroup, updateOrderStatus, updatePermission, updateRentalProperty, updateSingleQuestion, updateSubGroup,  } from "./service/regestration.service.js";
+import { addAuthorizedUser, confirmOTP, createAdminUser, createAppointment, createBranch, createDoctor, createEvaluation, createMainGroup, createMode, createOrder, createPermissions, createProduct, createQuestion, createRentalProperty, createRestaurant, createSubGroup, deleteAdminUser, deleteBranch, deleteDoctor, deleteMainGroup, deletePermission, deleteRentalProperty, deleteSingleQuestion, deleteSubGroup, findNearbyDrivers, getAllAdminUsers, getAllNormalUsers, getAllPermissions, getAllRentalProperties, getAllServiceProviders, getBranches, getDoctorAppointments, getDoctors, getEvaluations, getMainGroupsForUser, getMainGroupsWithSubGroups, getManagerRestaurants, getMyDoctorProfile, getMyEvaluations, getMyRestaurantsProducts, getMySubGroups, getNotificationsByDoctor, getNotificationsByRestaurant, getOwnerRestaurants, getProductsByRestaurant, getQuestionsByMainGroups, getRestaurantOrders, getRestaurants, getSubGroupsByMainGroup, getUserRentalProperties, markAllNotificationsAsRead, markAllNotificationsAsReadDoctor, registerRestaurant, sendotpphone, signup, signupServiceProvider, signupwithGmail, updateAdminUser, updateBranch, updateDoctor, updateMainGroup, updateOrderStatus, updatePermission, updateRentalProperty, updateSingleQuestion, updateSubGroup,  } from "./service/regestration.service.js";
 import { confirEachOtp, deleteMyAccount, forgetpassword,   forgetPasswordphone,   forgetPasswordphoneadmin,   login, loginAdmin, loginRestaurant, loginwithGmail, refreshToken, resendOTP, resetpassword, resetPasswordphone, verifyOTP } from "./service/authontecation.service.js";
 import { authentication, checkRestaurantPermission } from "../../middlewere/authontcation.middlewere.js";
 
@@ -109,6 +109,8 @@ routr.post("/markAllNotificationsAsReadDoctor/:doctorId", markAllNotificationsAs
 routr.post("/createAppointment", authentication(),createAppointment)
 
 routr.get("/getRestaurants", getRestaurants)
+
+routr.get("/findNearbyDrivers", findNearbyDrivers)
 
 routr.get("/getNotificationsByDoctor/:doctorId", getNotificationsByDoctor)
 routr.get("/getDoctorAppointments/:doctorId", getDoctorAppointments)
