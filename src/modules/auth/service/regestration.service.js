@@ -258,6 +258,69 @@ export const signupServiceProvider = asyncHandelr(async (req, res, next) => {
 
 
 
+export const updateUser = asyncHandelr(async (req, res, next) => {
+    const { id } = req.params; // 👈 بنجيب ال id من الرابط
+    const { fullName, password, email, phone ,kiloPrice} = req.body;
+
+    // ✅ تحقق من وجود المستخدم
+    const user = await dbservice.findOne({
+        model: Usermodel,
+        filter: { _id: id }
+    });
+
+    if (!user) {
+        return next(new Error("المستخدم غير موجود", { cause: 404 }));
+    }
+
+    // ✅ تحقق من عدم تكرار الإيميل أو رقم الهاتف (لو المستخدم بيغيرهم)
+    if (email || phone) {
+        const checkuser = await dbservice.findOne({
+            model: Usermodel,
+            filter: {
+                $and: [
+                    { _id: { $ne: id } }, // 👈 استبعاد نفس المستخدم
+                    {
+                        $or: [
+                            ...(email ? [{ email }] : []),
+                            ...(phone ? [{ phone }] : [])
+                        ]
+                    }
+                ]
+            }
+        });
+
+        if (checkuser) {
+            if (checkuser.email === email) {
+                return next(new Error("البريد الإلكتروني مستخدم من قبل", { cause: 400 }));
+            }
+            if (checkuser.phone === phone) {
+                return next(new Error("رقم الهاتف مستخدم من قبل", { cause: 400 }));
+            }
+        }
+    }
+
+    // ✅ لو فيه باسورد جديد يتعمله هاش
+    let hashpassword;
+    if (password) {
+        hashpassword = await generatehash({ planText: password });
+    }
+
+    // ✅ تعديل البيانات
+    const updatedUser = await dbservice.updateOne({
+        model: Usermodel,
+        filter: { _id: id },
+        data: {
+            ...(fullName && { fullName }),
+            ...(kiloPrice && { kiloPrice }),
+            ...(hashpassword && { password: hashpassword }),
+            ...(email && { email }),
+            ...(phone && { phone }),
+        }
+    });
+
+    return successresponse(res, "✅ تم تعديل بيانات المستخدم بنجاح", 200, );
+});
+
 
 
 export const findNearbyDrivers = asyncHandelr(async (req, res, next) => {

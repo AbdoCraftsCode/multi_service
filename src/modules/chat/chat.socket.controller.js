@@ -1,13 +1,13 @@
 import { Server } from "socket.io";
 import { logoutSocket, regiserSocket } from "./chat/chat.auth.service.js";
-import { driverLocationUpdate, sendMessage } from "./chat/message.service.js";
+import { driverLocationUpdate, sendMessage, userLocationUpdate } from "./chat/message.service.js";
 
 
 
 let io = undefined
 
 export const runIo = (httpServer) => {
-  io = new Server(httpServer, {
+    io = new Server(httpServer, {
         cors: "*"
     });
 
@@ -19,6 +19,7 @@ export const runIo = (httpServer) => {
         await sendMessage(socket);
         await regiserSocket(socket);
         await driverLocationUpdate(socket);
+        await userLocationUpdate(socket);
         await logoutSocket(socket);
     });
 
@@ -27,6 +28,6 @@ export const runIo = (httpServer) => {
 
 
 export const getIo = () => {
-    
+
     return io
 }

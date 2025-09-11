@@ -3,6 +3,7 @@ import Usermodel, { scketConnections } from "../../../DB/models/User.model.js";
 import { authenticationSocket } from "../../../middlewere/auth.socket.middlewere.js";
 import * as dbservice from "../../../DB/dbservice.js"
 import mongoose from 'mongoose';
+import { getIo } from "../chat.socket.controller.js";
 
 
 export const sendMessage = (socket) => {
@@ -71,16 +72,14 @@ export const sendMessage = (socket) => {
 
 
 export const driverLocationUpdate = (socket) => {
-    return socket.on("driverLocationUpdate", async (locationData) => {
+    socket.on("driverLocationUpdate", async ({ longitude, latitude }) => {
         try {
             const { data } = await authenticationSocket({ socket });
-
             if (!data.valid) {
                 return socket.emit("socketErrorResponse", data);
             }
 
-            const userId = data.user._id.toString();
-            const { longitude, latitude } = locationData;
+            const driverId = data.user._id.toString();
 
             if (!longitude || !latitude) {
                 return socket.emit("socketErrorResponse", {
@@ -89,16 +88,44 @@ export const driverLocationUpdate = (socket) => {
             }
 
             // تحديث مكان السواق في قاعدة البيانات
-            await Usermodel.findByIdAndUpdate(userId, {
+            await Usermodel.findByIdAndUpdate(driverId, {
                 location: {
                     type: "Point",
                     coordinates: [longitude, latitude]
                 }
             });
 
-            // رجع تأكيد للسواق
+            // ✅ رجع تأكيد للسواق نفسه
             socket.emit("locationUpdated", {
                 message: "✅ تم تحديث الموقع بنجاح"
+            });
+
+            // ✅ ابث تحديث لكل العملاء اللي عندهم موقع محفوظ
+            const io = getIo();
+            io.sockets.sockets.forEach((clientSocket) => {
+                if (clientSocket.userLocation) {
+                    const { longitude: clientLng, latitude: clientLat } = clientSocket.userLocation;
+
+                    // حساب المسافة (Haversine)
+                    const R = 6371;
+                    const dLat = (latitude - clientLat) * Math.PI / 180;
+                    const dLng = (longitude - clientLng) * Math.PI / 180;
+                    const a =
+                        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                        Math.cos(clientLat * Math.PI / 180) *
+                        Math.cos(latitude * Math.PI / 180) *
+                        Math.sin(dLng / 2) * Math.sin(dLng / 2);
+                    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+                    const distance = R * c;
+
+                    // إرسال تحديث لحظي للعميل
+                    clientSocket.emit("driverLocationUpdate", {
+                        driverId,
+                        longitude,
+                        latitude,
+                        distance: Number(distance.toFixed(2))
+                    });
+                }
             });
 
         } catch (error) {
@@ -109,3 +136,71 @@ export const driverLocationUpdate = (socket) => {
         }
     });
 };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// لما العميل يشارك موقعه
+export const userLocationUpdate = (socket) => {
+    socket.on("userLocationUpdate", async ({ longitude, latitude }) => {
+        try {
+            const { data } = await authenticationSocket({ socket });
+            if (!data.valid) {
+                return socket.emit("socketErrorResponse", data);
+            }
+
+            if (!longitude || !latitude) {
+                return socket.emit("socketErrorResponse", {
+                    message: "❌ مطلوب إرسال خط الطول والعرض"
+                });
+            }
+
+            // 📝 خزّن موقع العميل في الـ socket
+            socket.userLocation = { longitude, latitude };
+
+            // 🔍 رجّعله السواقين القريبين أول مرة
+            const drivers = await Usermodel.aggregate([
+                {
+                    $geoNear: {
+                        near: { type: "Point", coordinates: [longitude, latitude] },
+                        distanceField: "distance",
+                        spherical: true,
+                        maxDistance: 10000
+                    }
+                },
+                { $match: { serviceType: "Driver" } },
+                {
+                    $project: {
+                        fullName: 1,
+                        kiloPrice: 1,   // ✅ سعر الكيلو
+                        "profilePicture.secure_url": 1, // ✅ الصورة
+                        // "profilePicture.secure_url": 1,
+                        distance: { $divide: ["$distance", 1000] }
+                    }
+                }
+            ]);
+
+            socket.emit("nearbyDrivers", drivers);
+
+        } catch (err) {
+            console.error("Error in userLocationUpdate:", err);
+            socket.emit("socketErrorResponse", { message: "❌ خطأ داخلي" });
+        }
+    });
+};
+
