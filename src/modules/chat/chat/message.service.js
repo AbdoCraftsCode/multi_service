@@ -204,3 +204,123 @@ export const userLocationUpdate = (socket) => {
     });
 };
 
+export const rideRequest = (socket) => {
+    socket.on("sendRideRequest", async ({ driverId, pickup, dropoff, price }) => {
+        try {
+            const { data } = await authenticationSocket({ socket });
+            if (!data.valid) return socket.emit("socketErrorResponse", data);
+
+            const io = getIo(); // 🔹 لازم تعريف io قبل أي استخدام
+
+            console.log("🔎 driverId المطلوب:", driverId);
+            console.log("🧑‍🤝‍🧑 كل السوكتس:", Array.from(io.sockets.sockets.values()).map(s => ({
+                socketId: s.id,
+                userId: s.userId
+            })));
+
+            // 🔹 خزن موقع العميل في الـ socket
+            socket.userLocation = pickup;
+
+            // 🔹 جلب السوك الذي اختاره العميل
+            const driverSocket = Array.from(io.sockets.sockets.values())
+                .find(s => s.userId === driverId);
+
+            if (!driverSocket) {
+                return socket.emit("socketErrorResponse", { message: "❌ السواق غير متصل" });
+            }
+
+            // 🔹 إرسال الطلب للسواق المختار فقط
+            driverSocket.emit("newRideRequest", {
+                clientId: data.user._id,
+                clientName: data.user.fullName,
+                pickup,
+                dropoff,
+                price
+            });
+
+            // 🔹 تأكيد للعميل أن الطلب تم إرساله
+            socket.emit("rideRequestSent", {
+                message: "✅ تم إرسال الطلب للسواق المختار"
+            });
+
+        } catch (err) {
+            console.error("Error in sendRideRequest:", err);
+            socket.emit("socketErrorResponse", { message: "❌ خطأ أثناء إرسال الطلب" });
+        }
+    });
+};
+
+
+export const rideResponse = (socket) => {
+    socket.on("rideResponse", async ({ clientId, accepted, driverLocation }) => {
+        try {
+            const { data } = await authenticationSocket({ socket });
+            if (!data.valid) return socket.emit("socketErrorResponse", data);
+
+            const io = getIo();
+
+            // 🔹 تحديث موقع السواق لو مبعوت من الحدث
+            if (driverLocation) {
+                socket.userLocation = driverLocation;
+            }
+
+            // 🔹 جلب سوكيت العميل
+            const clientSocket = Array.from(io.sockets.sockets.values())
+                .find(s => s.userId === clientId);
+
+            if (!clientSocket) {
+                return socket.emit("socketErrorResponse", { message: "❌ العميل غير متصل" });
+            }
+
+            if (accepted) {
+                // 🟢 لو السواق قبل
+                if (!socket.userLocation) {
+                    return socket.emit("socketErrorResponse", { message: "❌ لازم تبعت موقعك الأول" });
+                }
+                if (!clientSocket.userLocation) {
+                    return socket.emit("socketErrorResponse", { message: "❌ العميل لم يرسل موقعه" });
+                }
+
+                // 🔹 حساب المسافة بين السواق والعميل
+                function calcDistance(coord1, coord2) {
+                    const R = 6371;
+                    const dLat = (coord2.latitude - coord1.latitude) * Math.PI / 180;
+                    const dLng = (coord2.longitude - coord1.longitude) * Math.PI / 180;
+                    const a = Math.sin(dLat / 2) ** 2 +
+                        Math.cos(coord1.latitude * Math.PI / 180) *
+                        Math.cos(coord2.latitude * Math.PI / 180) *
+                        Math.sin(dLng / 2) ** 2;
+                    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+                    return R * c;
+                }
+
+                const distance = calcDistance(socket.userLocation, clientSocket.userLocation);
+
+                clientSocket.emit("rideAccepted", {
+                    driverId: data.user._id,
+                    driverName: data.user.fullName,
+                    driverLocation: socket.userLocation,
+                    distance: distance.toFixed(2)
+                });
+
+                socket.emit("responseSent", { message: "✅ أرسلت موافقة للعميل" });
+
+            } else {
+                // 🔴 لو السواق رفض
+                clientSocket.emit("rideRejected", {
+                    driverId: data.user._id,
+                    driverName: data.user.fullName
+                });
+
+                socket.emit("responseSent", { message: "✅ أرسلت رفض للعميل" });
+            }
+
+        } catch (err) {
+            console.error("Error in rideResponse:", err);
+            socket.emit("socketErrorResponse", { message: "❌ خطأ أثناء إرسال رد الطلب" });
+        }
+    });
+};
+
+
+

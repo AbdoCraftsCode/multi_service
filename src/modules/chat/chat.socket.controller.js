@@ -1,6 +1,6 @@
 import { Server } from "socket.io";
 import { logoutSocket, regiserSocket } from "./chat/chat.auth.service.js";
-import { driverLocationUpdate, sendMessage, userLocationUpdate } from "./chat/message.service.js";
+import { driverLocationUpdate, rideRequest, rideResponse, sendMessage, userLocationUpdate } from "./chat/message.service.js";
 
 
 
@@ -20,6 +20,8 @@ export const runIo = (httpServer) => {
         await regiserSocket(socket);
         await driverLocationUpdate(socket);
         await userLocationUpdate(socket);
+        await rideRequest(socket);
+        await rideResponse(socket);
         await logoutSocket(socket);
     });
 
