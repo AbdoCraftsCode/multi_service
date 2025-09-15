@@ -316,7 +316,6 @@ export const userLocationUpdate = (socket) => {
 //     });
 // };
 
-
 export const rideRequest = (socket) => {
     socket.on("sendRideRequest", async ({ driverId, pickup, dropoff, price }) => {
         try {
@@ -355,10 +354,15 @@ export const rideRequest = (socket) => {
                 price
             });
 
-            // 🔹 تأكيد للعميل أن الطلب تم إرساله
+            // 🔹 تأكيد للعميل أن الطلب تم إرساله + كل بيانات الرحلة
             socket.emit("rideRequestSent", {
                 message: "✅ تم إرسال الطلب للسواق المختار",
-                rideId: newRide._id
+                rideId: newRide._id,
+                clientId: data.user._id,
+                driverId,
+                pickup,
+                dropoff,
+                price
             });
 
         } catch (err) {
