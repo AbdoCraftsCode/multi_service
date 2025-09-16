@@ -246,7 +246,7 @@ export const userLocationUpdate = (socket) => {
                         near: { type: "Point", coordinates: [longitude, latitude] },
                         distanceField: "distance",
                         spherical: true,
-                        maxDistance: 10000
+                        maxDistance: 1000000000
                     }
                 },
                 { $match: { serviceType: "Driver" } },
