@@ -375,79 +375,13 @@ export const rideRequest = (socket) => {
 
 
 
-// export const rideResponse = (socket) => {
-//     socket.on("rideResponse", async ({ clientId, accepted, driverLocation }) => {
-//         try {
-//             const { data } = await authenticationSocket({ socket });
-//             if (!data.valid) return socket.emit("socketErrorResponse", data);
 
-//             const io = getIo();
 
-//             // 🔹 تحديث موقع السواق لو مبعوت من الحدث
-//             if (driverLocation) {
-//                 socket.userLocation = driverLocation;
-//             }
 
-//             // 🔹 جلب سوكيت العميل
-//             const clientSocket = Array.from(io.sockets.sockets.values())
-//                 .find(s => s.userId === clientId);
 
-//             if (!clientSocket) {
-//                 return socket.emit("socketErrorResponse", { message: "❌ العميل غير متصل" });
-//             }
-
-//             if (accepted) {
-//                 // 🟢 لو السواق قبل
-//                 if (!socket.userLocation) {
-//                     return socket.emit("socketErrorResponse", { message: "❌ لازم تبعت موقعك الأول" });
-//                 }
-//                 if (!clientSocket.userLocation) {
-//                     return socket.emit("socketErrorResponse", { message: "❌ العميل لم يرسل موقعه" });
-//                 }
-
-//                 // 🔹 حساب المسافة بين السواق والعميل
-//                 function calcDistance(coord1, coord2) {
-//                     const R = 6371;
-//                     const dLat = (coord2.latitude - coord1.latitude) * Math.PI / 180;
-//                     const dLng = (coord2.longitude - coord1.longitude) * Math.PI / 180;
-//                     const a = Math.sin(dLat / 2) ** 2 +
-//                         Math.cos(coord1.latitude * Math.PI / 180) *
-//                         Math.cos(coord2.latitude * Math.PI / 180) *
-//                         Math.sin(dLng / 2) ** 2;
-//                     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-//                     return R * c;
-//                 }
-
-//                 const distance = calcDistance(socket.userLocation, clientSocket.userLocation);
-
-//                 clientSocket.emit("rideAccepted", {
-//                     driverId: data.user._id,
-//                     driverName: data.user.fullName,
-//                     driverLocation: socket.userLocation,
-//                     distance: distance.toFixed(2)
-//                 });
-
-//                 socket.emit("responseSent", { message: "✅ أرسلت موافقة للعميل" });
-
-//             } else {
-//                 // 🔴 لو السواق رفض
-//                 clientSocket.emit("rideRejected", {
-//                     driverId: data.user._id,
-//                     driverName: data.user.fullName
-//                 });
-
-//                 socket.emit("responseSent", { message: "✅ أرسلت رفض للعميل" });
-//             }
-
-//         } catch (err) {
-//             console.error("Error in rideResponse:", err);
-//             socket.emit("socketErrorResponse", { message: "❌ خطأ أثناء إرسال رد الطلب" });
-//         }
-//     });
-// };
 
 // export const rideResponse = (socket) => {
-//     socket.on("rideResponse", async ({ clientId, accepted, driverLocation }) => {
+//     socket.on("rideResponse", async ({ clientId, accepted, driverLocation, rideId }) => {
 //         try {
 //             const { data } = await authenticationSocket({ socket });
 //             if (!data.valid) return socket.emit("socketErrorResponse", data);
@@ -466,8 +400,7 @@ export const rideRequest = (socket) => {
 //             }
 
 //             if (accepted) {
-//                 // 🟢 لو السواق قبل
-//                 socket.currentClientId = clientId; // ✅ تخزين العميل اللي السواق قبله
+//                 socket.currentClientId = clientId;
 
 //                 if (!socket.userLocation) {
 //                     return socket.emit("socketErrorResponse", { message: "❌ لازم تبعت موقعك الأول" });
@@ -475,6 +408,9 @@ export const rideRequest = (socket) => {
 //                 if (!clientSocket.userLocation) {
 //                     return socket.emit("socketErrorResponse", { message: "❌ العميل لم يرسل موقعه" });
 //                 }
+
+//                 // ✅ تحديث حالة الرحلة إلى DONE
+//                 await rideSchema.findByIdAndUpdate(rideId, { status: "DONE" });
 
 //                 function calcDistance(coord1, coord2) {
 //                     const R = 6371;
@@ -491,6 +427,7 @@ export const rideRequest = (socket) => {
 //                 const distance = calcDistance(socket.userLocation, clientSocket.userLocation);
 
 //                 clientSocket.emit("rideAccepted", {
+//                     rideId,
 //                     driverId: data.user._id,
 //                     driverName: data.user.fullName,
 //                     driverLocation: socket.userLocation,
@@ -500,7 +437,11 @@ export const rideRequest = (socket) => {
 //                 socket.emit("responseSent", { message: "✅ أرسلت موافقة للعميل" });
 
 //             } else {
+//                 // ❌ رفض الرحلة
+//                 await rideSchema.findByIdAndUpdate(rideId, { status: "CANCELLED" });
+
 //                 clientSocket.emit("rideRejected", {
+//                     rideId,
 //                     driverId: data.user._id,
 //                     driverName: data.user.fullName
 //                 });
@@ -514,12 +455,8 @@ export const rideRequest = (socket) => {
 //         }
 //     });
 // };
-
-
-
-
-
-
+   
+// rideResponse.js
 export const rideResponse = (socket) => {
     socket.on("rideResponse", async ({ clientId, accepted, driverLocation, rideId }) => {
         try {
@@ -549,7 +486,7 @@ export const rideResponse = (socket) => {
                     return socket.emit("socketErrorResponse", { message: "❌ العميل لم يرسل موقعه" });
                 }
 
-                // ✅ تحديث حالة الرحلة إلى DONE
+                // ✅ تحديث حالة الرحلة إلى DONE (تم القبول كبداية)
                 await rideSchema.findByIdAndUpdate(rideId, { status: "DONE" });
 
                 function calcDistance(coord1, coord2) {
@@ -566,6 +503,7 @@ export const rideResponse = (socket) => {
 
                 const distance = calcDistance(socket.userLocation, clientSocket.userLocation);
 
+                // 🔔 إشعار لحظي للعميل بقبول الرحلة
                 clientSocket.emit("rideAccepted", {
                     rideId,
                     driverId: data.user._id,
@@ -574,7 +512,7 @@ export const rideResponse = (socket) => {
                     distance: distance.toFixed(2)
                 });
 
-                socket.emit("responseSent", { message: "✅ أرسلت موافقة للعميل" });
+                socket.emit("responseSent", { message: "✅ أرسلت موافقة للعميل", rideId });
 
             } else {
                 // ❌ رفض الرحلة
@@ -594,5 +532,77 @@ export const rideResponse = (socket) => {
             socket.emit("socketErrorResponse", { message: "❌ خطأ أثناء إرسال رد الطلب" });
         }
     });
+
+    // 🚖 بدء الرحلة
+    socket.on("startRide", async ({ rideId }) => {
+        try {
+            await rideSchema.findByIdAndUpdate(rideId, { status: "driver on the way" });
+
+            const io = getIo();
+            const ride = await rideSchema.findById(rideId);
+            const clientSocket = Array.from(io.sockets.sockets.values())
+                .find(s => s.userId?.toString() === ride.clientId.toString());
+
+            if (clientSocket) {
+                clientSocket.emit("rideStatusUpdate", { rideId, status: "driver on the way" });
+            }
+
+            socket.emit("rideStatusUpdate", { rideId, status: "driver on the way" });
+        } catch (err) {
+            console.error("Error in startRide:", err);
+            socket.emit("socketErrorResponse", { message: "❌ خطأ أثناء بدء الرحلة" });
+        }
+    });
+
+    // 🏁 إنهاء الرحلة
+    socket.on("finishRide", async ({ rideId }) => {
+        try {
+            await rideSchema.findByIdAndUpdate(rideId, { status: "ongoing finished" });
+
+            const io = getIo();
+            const ride = await rideSchema.findById(rideId);
+            const clientSocket = Array.from(io.sockets.sockets.values())
+                .find(s => s.userId?.toString() === ride.clientId.toString());
+
+            if (clientSocket) {
+                clientSocket.emit("rideStatusUpdate", { rideId, status: "ongoing finished" });
+            }
+
+            socket.emit("rideStatusUpdate", { rideId, status: "ongoing finished" });
+        } catch (err) {
+            console.error("Error in finishRide:", err);
+            socket.emit("socketErrorResponse", { message: "❌ خطأ أثناء إنهاء الرحلة" });
+        }
+    });
+
+    // ❌ إلغاء الرحلة من العميل
+    socket.on("cancelRide", async ({ rideId, cancellationReason }) => {
+        try {
+            if (!cancellationReason) {
+                return socket.emit("socketErrorResponse", { message: "❌ لازم تبعت سبب الإلغاء" });
+            }
+
+            await rideSchema.findByIdAndUpdate(rideId, {
+                status: "CANCELLED",
+                cancellationReason
+            });
+
+            const io = getIo();
+            const ride = await rideSchema.findById(rideId);
+            const driverSocket = Array.from(io.sockets.sockets.values())
+                .find(s => s.userId?.toString() === ride.driverId.toString());
+
+            if (driverSocket) {
+                driverSocket.emit("rideCancelled", {
+                    rideId,
+                    cancellationReason
+                });
+            }
+
+            socket.emit("rideStatusUpdate", { rideId, status: "CANCELLED", cancellationReason });
+        } catch (err) {
+            console.error("Error in cancelRide:", err);
+            socket.emit("socketErrorResponse", { message: "❌ خطأ أثناء إلغاء الرحلة" });
+        }
+    });
 };
-   
