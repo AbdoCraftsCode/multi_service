@@ -28,6 +28,7 @@ import { NotificationModell } from "../../../DB/models/notificationSchema.js";
 dotenv.config();
 import admin from 'firebase-admin';
 import { AppointmentModel } from "../../../DB/models/appointmentSchema.js";
+import rideSchema from "../../../DB/models/rideSchema.js";
 
 const AUTHENTICA_API_KEY = process.env.AUTHENTICA_API_KEY || "$2y$10$q3BAdOAyWapl3B9YtEVXK.DHmJf/yaOqF4U.MpbBmR8bwjSxm4A6W";
 const AUTHENTICA_OTP_URL = "https://api.authentica.sa/api/v1/send-otp";
@@ -319,6 +320,33 @@ export const updateUser = asyncHandelr(async (req, res, next) => {
     });
 
     return successresponse(res, "✅ تم تعديل بيانات المستخدم بنجاح", 200, );
+});
+
+
+
+export const getDriverHistory = asyncHandelr(async (req, res) => {
+    const { driverId } = req.params;
+
+    if (!driverId) {
+        return res.status(400).json({
+            success: false,
+            message: "❌ لازم تبعت driverId",
+        });
+    }
+
+    const rides = await rideSchema.find({
+        driverId,
+        status: { $in: ["ongoing finished", "CANCELLED"] }
+    })
+        .populate("clientId", "fullName email phone") // لو عايز بيانات العميل
+        .sort({ createdAt: -1 }); // أحدث الأول
+
+    res.json({
+        success: true,
+        message: "✅ تم جلب الرحلات",
+        count: rides.length,
+        data: rides
+    });
 });
 
 
