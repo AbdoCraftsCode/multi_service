@@ -578,7 +578,7 @@ export const rideResponse = (socket) => {
 
             } else {
                 // ❌ رفض الرحلة
-                await Ride.findByIdAndUpdate(rideId, { status: "CANCELLED" });
+                await rideSchema.findByIdAndUpdate(rideId, { status: "CANCELLED" });
 
                 clientSocket.emit("rideRejected", {
                     rideId,
