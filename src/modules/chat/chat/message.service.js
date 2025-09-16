@@ -521,7 +521,7 @@ export const rideResponse = (socket) => {
                 clientSocket.emit("rideRejected", {
                     rideId,
                     driverId: data.user._id,
-                    driverName: data.user.fullName
+                    // driverName: data.user.fullName
                 });
 
                 socket.emit("responseSent", { message: "✅ أرسلت رفض للعميل" });
