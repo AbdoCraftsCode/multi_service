@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { validation } from "../../middlewere/validation.middlewere.js";
 import  * as validators from "../auth/auth.validate.js"
-import { addAuthorizedUser, addProduct, addSection, confirmOTP, createAdminUser, createAppointment, createBranch, createDoctor, createEvaluation, createMainGroup, createMode, createOrder, createPermissions, createProduct, createQuestion, createRentalProperty, createRestaurant, createSubGroup, createSupermarket, deleteAdminUser, deleteBranch, deleteDoctor, deleteMainGroup, deletePermission, deleteRentalProperty, deleteSingleQuestion, deleteSubGroup, findNearbyDrivers, getAllAdminUsers, getAllNormalUsers, getAllPermissions, getAllRentalProperties, getAllServiceProviders, getBranches, getDoctorAppointments, getDoctors, getDriverHistory, getEvaluations, getMainGroupsForUser, getMainGroupsWithSubGroups, getManagerRestaurants, getMyDoctorProfile, getMyEvaluations, getMyRestaurantsProducts, getMySubGroups, getNotificationsByDoctor, getNotificationsByRestaurant, getOwnerRestaurants, getProductsByRestaurant, getQuestionsByMainGroups, getRestaurantOrders, getRestaurants, getSubGroupsByMainGroup, getSupermarket, getSupermarketSections, getUserRentalProperties, markAllNotificationsAsRead, markAllNotificationsAsReadDoctor, registerRestaurant, sendotpphone, signup, signupServiceProvider, signupwithGmail, updateAdminUser, updateBranch, updateDoctor, updateMainGroup, updateOrderStatus, updatePermission, updateRentalProperty, updateSingleQuestion, updateSubGroup, updateUser,  } from "./service/regestration.service.js";
+import { addAuthorizedUser, addAuthorizedUserToSupermarket, addProduct, addSection, confirmOTP, createAdminUser, createAppointment, createBranch, createDoctor, createEvaluation, createMainGroup, createMode, createOrder, createPermissions, createProduct, createQuestion, createRentalProperty, createRestaurant, createSubGroup, createSupermarket, deleteAdminUser, deleteBranch, deleteDoctor, deleteMainGroup, deletePermission, deleteRentalProperty, deleteSingleQuestion, deleteSubGroup, findNearbyDrivers, getAccessibleSupermarket, getAllAdminUsers, getAllNormalUsers, getAllPermissions, getAllRentalProperties, getAllServiceProviders, getBranches, getDoctorAppointments, getDoctors, getDriverHistory, getEvaluations, getMainGroupsForUser, getMainGroupsWithSubGroups, getManagerRestaurants, getMyDoctorProfile, getMyEvaluations, getMyRestaurantsProducts, getMySubGroups, getNotificationsByDoctor, getNotificationsByRestaurant, getOwnerRestaurants, getProductsByRestaurant, getQuestionsByMainGroups, getRestaurantOrders, getRestaurants, getSubGroupsByMainGroup, getSupermarket, getSupermarketSections, getSupermarketWithSectionsAndProducts, getUserRentalProperties, markAllNotificationsAsRead, markAllNotificationsAsReadDoctor, registerRestaurant, sendotpphone, signup, signupServiceProvider, signupwithGmail, updateAdminUser, updateBranch, updateDoctor, updateMainGroup, updateOrderStatus, updatePermission, updateRentalProperty, updateSingleQuestion, updateSubGroup, updateUser,  } from "./service/regestration.service.js";
 import { confirEachOtp, deleteMyAccount, forgetpassword,   forgetPasswordphone,   forgetPasswordphoneadmin,   login, loginAdmin, loginRestaurant, loginwithGmail, refreshToken, resendOTP, resetpassword, resetPasswordphone, verifyOTP } from "./service/authontecation.service.js";
 import { authentication, checkRestaurantPermission } from "../../middlewere/authontcation.middlewere.js";
 
@@ -151,6 +151,13 @@ routr.get("/getUserRentalProperties", authentication(), getUserRentalProperties)
 routr.get("/getRestaurantOrders/:restaurantId", getRestaurantOrders)
 
 routr.post("/addAuthorizedUser", authentication(), addAuthorizedUser)
+
+
+routr.get("/getAccessibleSupermarket", authentication(), getAccessibleSupermarket)
+
+routr.get("/getSupermarketWithSectionsAndProducts/:supermarketId", authentication(), getSupermarketWithSectionsAndProducts)
+
+routr.post("/addAuthorizedUserToSupermarket", authentication(), addAuthorizedUserToSupermarket)
 routr.get("/getMyDoctorProfile", authentication(), getMyDoctorProfile)
 routr.delete("/deleteDoctor/:id", authentication(), deleteDoctor)
 routr.post("/registerRestaurant", registerRestaurant)

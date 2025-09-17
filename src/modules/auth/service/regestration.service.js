@@ -855,6 +855,114 @@ export const getManagerRestaurants = asyncHandelr(async (req, res, next) => {
     });
 });
 
+export const getAccessibleSupermarket = asyncHandelr(async (req, res, next) => {
+    const { lang = "ar" } = req.query; // اللغة الافتراضية عربي
+
+    const supermarket = await SupermarketModel.findOne({
+        "authorizedUsers.user": req.user._id
+    })
+        .sort({ createdAt: -1 })
+        .populate("createdBy", "fullName email")
+        .populate("authorizedUsers.user", "fullName email");
+
+    if (!supermarket) {
+        return next(new Error("لا يوجد سوبر ماركت لديك صلاحية الوصول إليه", { cause: 404 }));
+    }
+
+    // ✅ تجهيز نسخة قابلة للتعديل
+    const supermarketObj = supermarket.toObject();
+
+    // ✅ استبدال الحقول متعددة اللغات بقيمة لغة واحدة
+    const translateField = (field) => {
+        if (field && typeof field === "object") {
+            return field[lang] || field["ar"] || field["en"] || "";
+        }
+        return field;
+    };
+
+    supermarketObj.name = translateField(supermarketObj.name);
+    supermarketObj.description = translateField(supermarketObj.description);
+
+    res.status(200).json({
+        message: "تم جلب السوبر ماركت الذي لديك صلاحية الوصول إليه بنجاح",
+        lang,
+        data: supermarketObj
+    });
+});
+
+
+export const getSupermarketWithSectionsAndProducts = asyncHandelr(async (req, res, next) => {
+    const { supermarketId } = req.params;
+    const { lang = "ar" } = req.query;
+
+    if (!supermarketId) {
+        return next(new Error("رقم السوبر ماركت مطلوب", { cause: 400 }));
+    }
+
+    // ✅ تحقق إن السوبر ماركت موجود والمستخدم مالك أو Manager فيه
+    const supermarket = await SupermarketModel.findOne({
+        _id: supermarketId,
+        $or: [
+            { createdBy: req.user._id },
+            { "authorizedUsers.user": req.user._id, "authorizedUsers.role": "staff" }
+        ]
+    });
+
+    if (!supermarket) {
+        return next(new Error("غير مصرح لك بعرض بيانات هذا السوبر ماركت", { cause: 403 }));
+    }
+
+    // ✅ دالة للترجمة حسب اللغة
+    const translateField = (field) => {
+        if (field && typeof field === "object") {
+            return field[lang] || field["ar"] || field["en"] || "";
+        }
+        return field;
+    };
+
+    // 📦 هات الأقسام الخاصة بالسوبر ماركت
+    const sections = await SectionModel.find({ supermarket: supermarketId })
+        .populate("createdBy", "fullName email");
+
+    // 🛒 هات المنتجات الخاصة بالسوبر ماركت
+    const products = await ProductModelllll.find({ supermarket: supermarketId })
+        .populate("createdBy", "fullName email");
+
+    // 🔗 ربط الأقسام بالمنتجات
+    const sectionsWithProducts = sections.map(section => {
+        const sectionObj = section.toObject();
+        sectionObj.name = translateField(sectionObj.name);
+        sectionObj.description = translateField(sectionObj.description);
+
+        sectionObj.products = products
+            .filter(prod => prod.section.toString() === section._id.toString())
+            .map(prod => {
+                const prodObj = prod.toObject();
+                prodObj.name = translateField(prodObj.name);
+                prodObj.description = translateField(prodObj.description);
+                return prodObj;
+            });
+
+        return sectionObj;
+    });
+
+    res.status(200).json({
+        message: "تم جلب الأقسام والمنتجات بنجاح",
+        supermarket: {
+            _id: supermarket._id,
+            name: translateField(supermarket.name),
+            description: translateField(supermarket.description),
+            phone: supermarket.phone,
+            image: supermarket.image,
+            bannerImages: supermarket.bannerImages
+        },
+        count: sectionsWithProducts.length,
+        data: sectionsWithProducts
+    });
+});
+
+
+
 
 
 export const addAuthorizedUser = asyncHandelr(async (req, res, next) => {
@@ -901,6 +1009,49 @@ export const addAuthorizedUser = asyncHandelr(async (req, res, next) => {
     });
 });
 
+export const addAuthorizedUserToSupermarket = asyncHandelr(async (req, res, next) => {
+    const { supermarketId, userId, role } = req.body;
+
+    // ✅ تحقق أن المستخدم الحالي هو الـ Owner (صاحب السوبر ماركت)
+    const supermarket = await SupermarketModel.findOne({
+        _id: supermarketId,
+        createdBy: req.user._id
+    });
+
+    if (!supermarket) {
+        return next(new Error("لا يمكنك تعديل هذا السوبر ماركت", { cause: 403 }));
+    }
+
+    // ✅ تحقق أن المستخدم الهدف موجود
+    const targetUser = await Usermodel.findById(userId);
+    if (!targetUser) {
+        return next(new Error("المستخدم غير موجود", { cause: 404 }));
+    }
+
+    // ✅ تحقق إذا كان المستخدم مضاف مسبقاً
+    const alreadyExists = supermarket.authorizedUsers.some(
+        (auth) => auth.user.toString() === userId
+    );
+    if (alreadyExists) {
+        return next(new Error("المستخدم مضاف بالفعل", { cause: 400 }));
+    }
+
+    // ✅ إضافة المستخدم المصرح له
+    supermarket.authorizedUsers.push({
+        user: userId,
+        role: role || "manager"
+    });
+    await supermarket.save();
+
+    // ✅ إرجاع السوبر ماركت مع بيانات المستخدمين المصرح لهم
+    const updatedSupermarket = await SupermarketModel.findById(supermarket._id)
+        .populate("authorizedUsers.user", "fullName email");
+
+    res.status(200).json({
+        message: "تم إضافة المستخدم المصرح له بنجاح",
+        data: updatedSupermarket
+    });
+});
 
 
 
