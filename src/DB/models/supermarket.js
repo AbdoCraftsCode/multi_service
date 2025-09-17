@@ -38,7 +38,11 @@ const supermarketSchema = new mongoose.Schema({
     name: { type: i18nString, required: true },
     description: { type: i18nString, default: {} },
     phone: { type: String, trim: true },
-    websiteLink: { type: String, trim: true },
+    // websiteLink: { type: String, trim: true },
+    pickup: {
+        latitude: Number,
+        longitude: Number
+    },
     image: imageSchema, // cover image
     bannerImages: { type: [imageSchema], default: [] },
     isOpen: { type: Boolean, default: true },

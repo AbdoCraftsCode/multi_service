@@ -2743,14 +2743,15 @@ export const getMyEvaluations = async (req, res) => {
 
 // ---- Create Supermarket (رفع صورة وبانر)
 export const createSupermarket = asyncHandelr(async (req, res, next) => {
-    let { name = {}, description = {}, phone, websiteLink, isOpen } = req.body;
+    let { name = {}, description = {}, phone, pickup, isOpen } = req.body;
 
     // ✅ Parse JSON Strings if needed
     try {
         if (typeof name === "string") name = JSON.parse(name);
         if (typeof description === "string") description = JSON.parse(description);
+        if (typeof pickup === "string") pickup = JSON.parse(pickup);
     } catch (err) {
-        return next(new Error("خطأ في صيغة JSON للـ name أو description", { cause: 400 }));
+        return next(new Error("خطأ في صيغة JSON للـ name أو description أو pickup", { cause: 400 }));
     }
 
     // ✅ تحقق من صلاحية المستخدم
@@ -2787,7 +2788,7 @@ export const createSupermarket = asyncHandelr(async (req, res, next) => {
         name,
         description,
         phone,
-        websiteLink,
+        pickup, // ← هنا الإحداثيات الجديدة
         image: uploadedImage,
         bannerImages: uploadedBanners,
         isOpen: isOpen ?? true,
@@ -2875,54 +2876,125 @@ export const addProduct = asyncHandelr(async (req, res, next) => {
 
 
 
+// دالة لحساب المسافة بالكيلومتر (صيغة Haversine)
+function calculateDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371; // نصف قطر الأرض بالكيلومتر
+    const toRad = (value) => (value * Math.PI) / 180;
+
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+
+    const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(toRad(lat1)) *
+        Math.cos(toRad(lat2)) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    return R * c; // المسافة بالكيلومتر
+}
+
 export const getSupermarket = asyncHandelr(async (req, res, next) => {
-    const { id } = req.params;
-    const lang = req.query.lang; // optional
+    const { latitude, longitude, lang } = req.query;
 
-    const supermarket = await SupermarketModel.findById(id).lean();
-    if (!supermarket) return next(new Error("السوبر ماركت غير موجود", { cause: 404 }));
+    // ✅ تحقق من وجود إحداثيات
+    if (!latitude || !longitude) {
+        return next(new Error("الرجاء إدخال latitude و longitude في الاستعلام", { cause: 400 }));
+    }
 
-    // fetch sections and products
-    const sections = await SectionModel.find({ supermarket: id }).lean();
-    const sectionIds = sections.map(s => s._id);
-    const products = await ProductModelllll.find({ supermarket: id }).lean();
+    const userLat = parseFloat(latitude);
+    const userLon = parseFloat(longitude);
 
-    // Helper: localize a multilingual object
+    // ✅ هات كل السوبر ماركت
+    const supermarkets = await SupermarketModel.find().lean();
+
+    if (!supermarkets.length) {
+        return res.status(200).json({ message: "لا يوجد سوبر ماركت", data: [] });
+    }
+
+    // ✅ localize function
     const localize = (multi, lang) => {
         if (!lang) return multi;
         return (multi && multi[lang]) ? multi[lang] : (multi?.en || multi?.fr || multi?.ar || "");
     };
 
-    // Assemble response
-    const response = {
-        ...supermarket,
-        sections: sections.map(s => ({
-            _id: s._id,
-            name: localize(s.name, lang),
-            description: localize(s.description, lang),
-            createdAt: s.createdAt,
-            updatedAt: s.updatedAt,
-            products: products
-                .filter(p => p.section.toString() === s._id.toString())
-                .map(p => ({
-                    _id: p._id,
-                    name: localize(p.name, lang),
-                    description: localize(p.description, lang),
-                    images: p.images,
-                    price: p.price,
-                    discount: p.discount,
-                    stock: p.stock,
-                    createdAt: p.createdAt,
-                    updatedAt: p.updatedAt
-                }))
-        }))
+    // ✅ احسب المسافة لكل سوبر ماركت
+    const data = supermarkets.map((sm) => {
+        const smLat = sm.pickup?.latitude;
+        const smLon = sm.pickup?.longitude;
+
+        let distance = null;
+        if (smLat != null && smLon != null) {
+            distance = calculateDistance(userLat, userLon, smLat, smLon);
+        }
+
+        return {
+            _id: sm._id,
+            name: localize(sm.name, lang),
+            description: localize(sm.description, lang),
+            phone: sm.phone,
+            pickup: sm.pickup,
+            image: sm.image,
+            bannerImages: sm.bannerImages,
+            isOpen: sm.isOpen,
+            distance: distance !== null ? parseFloat(distance.toFixed(2)) : null, // بالكيلومتر
+            createdAt: sm.createdAt,
+            updatedAt: sm.updatedAt
+        };
+    });
+
+    // ✅ رتبهم من الأقرب للأبعد
+    data.sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
+
+    return res.status(200).json({ data });
+});
+
+
+export const getSupermarketSections = asyncHandelr(async (req, res, next) => {
+    const { id } = req.params; // supermarketId
+    const lang = req.query.lang; // optional ?lang=ar
+
+    // ✅ تحقق من وجود السوبر ماركت
+    const supermarket = await SupermarketModel.findById(id).lean();
+    if (!supermarket) {
+        return next(new Error("السوبر ماركت غير موجود", { cause: 404 }));
+    }
+
+    // ✅ هات الأقسام المرتبطة بالسوبر ماركت
+    const sections = await SectionModel.find({ supermarket: id }).lean();
+
+    // ✅ هات المنتجات المرتبطة بالسوبر ماركت
+    const products = await ProductModelllll.find({ supermarket: id }).lean();
+
+    // Helper: localize نص متعدد اللغات
+    const localize = (multi, lang) => {
+        if (!lang) return multi;
+        return (multi && multi[lang]) ? multi[lang] : (multi?.en || multi?.fr || multi?.ar || "");
     };
 
-    // localize supermarket top-level if lang provided
-    if (lang) {
-        response.name = localize(supermarket.name, lang);
-        response.description = localize(supermarket.description, lang);
-    }
+    // ✅ رتب الاستجابة
+    const response = sections.map(section => ({
+        _id: section._id,
+        name: localize(section.name, lang),
+        description: localize(section.description, lang),
+        createdAt: section.createdAt,
+        updatedAt: section.updatedAt,
+        products: products
+            .filter(p => p.section.toString() === section._id.toString())
+            .map(p => ({
+                _id: p._id,
+                name: localize(p.name, lang),
+                description: localize(p.description, lang),
+                images: p.images,
+                price: p.price,
+                discount: p.discount,
+                stock: p.stock,
+                createdAt: p.createdAt,
+                updatedAt: p.updatedAt
+            }))
+    }));
 
     return res.status(200).json({ data: response });
 });
