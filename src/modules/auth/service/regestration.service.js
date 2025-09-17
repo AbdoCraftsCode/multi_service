@@ -29,6 +29,7 @@ dotenv.config();
 import admin from 'firebase-admin';
 import { AppointmentModel } from "../../../DB/models/appointmentSchema.js";
 import rideSchema from "../../../DB/models/rideSchema.js";
+import { ProductModelllll, SectionModel, SupermarketModel } from "../../../DB/models/supermarket.js";
 
 const AUTHENTICA_API_KEY = process.env.AUTHENTICA_API_KEY || "$2y$10$q3BAdOAyWapl3B9YtEVXK.DHmJf/yaOqF4U.MpbBmR8bwjSxm4A6W";
 const AUTHENTICA_OTP_URL = "https://api.authentica.sa/api/v1/send-otp";
@@ -2738,3 +2739,190 @@ export const getMyEvaluations = async (req, res) => {
         });
     }
 };
+
+
+// ---- Create Supermarket (رفع صورة وبانر)
+export const createSupermarket = asyncHandelr(async (req, res, next) => {
+    let { name = {}, description = {}, phone, websiteLink, isOpen } = req.body;
+
+    // ✅ Parse JSON Strings if needed
+    try {
+        if (typeof name === "string") name = JSON.parse(name);
+        if (typeof description === "string") description = JSON.parse(description);
+    } catch (err) {
+        return next(new Error("خطأ في صيغة JSON للـ name أو description", { cause: 400 }));
+    }
+
+    // ✅ تحقق من صلاحية المستخدم
+    const user = await Usermodel.findById(req.user._id);
+    if (!user || user.accountType !== "Owner") {
+        return next(new Error("غير مسموح لك بإنشاء سوبر ماركت، يجب أن يكون حسابك Owner", { cause: 403 }));
+    }
+
+    // ✅ تحقق من الحقول الأساسية
+    const hasName = (name.en || name.fr || name.ar);
+    if (!hasName) {
+        return next(new Error("اسم السوبر ماركت مطلوب على الأقل بلغة واحدة", { cause: 400 }));
+    }
+
+    // ✅ رفع صورة cover
+    let uploadedImage = null;
+    if (req.files?.image?.[0]) {
+        const file = req.files.image[0];
+        const uploaded = await cloud.uploader.upload(file.path, { folder: "supermarkets/images" });
+        uploadedImage = { secure_url: uploaded.secure_url, public_id: uploaded.public_id };
+    }
+
+    // ✅ رفع صور banners
+    const uploadedBanners = [];
+    if (req.files?.bannerImages) {
+        for (const file of req.files.bannerImages) {
+            const uploaded = await cloud.uploader.upload(file.path, { folder: "supermarkets/banners" });
+            uploadedBanners.push({ secure_url: uploaded.secure_url, public_id: uploaded.public_id });
+        }
+    }
+
+    // ✅ إنشاء السوبرماركت
+    const supermarket = await SupermarketModel.create({
+        name,
+        description,
+        phone,
+        websiteLink,
+        image: uploadedImage,
+        bannerImages: uploadedBanners,
+        isOpen: isOpen ?? true,
+        createdBy: req.user._id
+    });
+
+    return res.status(201).json({ message: "تم إنشاء السوبر ماركت بنجاح", data: supermarket });
+});
+
+export const addSection = asyncHandelr(async (req, res, next) => {
+    const { supermarketId } = req.params;
+    const { name = {}, description = {} } = req.body;
+
+    const user = await Usermodel.findById(req.user._id);
+    if (!user) return next(new Error("غير مصرح", { cause: 403 }));
+
+    // تحقق أن السوبر ماركت موجود
+    const sm = await SupermarketModel.findById(supermarketId);
+    if (!sm) return next(new Error("السوبر ماركت غير موجود", { cause: 404 }));
+
+    // حقل الاسم مطلوب على الأقل بلغة واحدة
+    if (!(name.en || name.fr || name.ar)) {
+        return next(new Error("اسم القسم مطلوب على الأقل بلغة واحدة", { cause: 400 }));
+    }
+
+    const section = await SectionModel.create({
+        supermarket: sm._id,
+        name,
+        description,
+        createdBy: req.user._id
+    });
+
+    return res.status(201).json({ message: "تم إضافة القسم", data: section });
+});
+
+
+
+export const addProduct = asyncHandelr(async (req, res, next) => {
+    const { sectionId } = req.params;
+    let { name = {}, description = {}, price, discount = 0, stock = 0 } = req.body;
+
+    // ✅ Parse JSON Strings if needed
+    try {
+        if (typeof name === "string") name = JSON.parse(name);
+        if (typeof description === "string") description = JSON.parse(description);
+    } catch (err) {
+        return next(new Error("خطأ في صيغة JSON للـ name أو description", { cause: 400 }));
+    }
+
+    // ✅ validate
+    if (!price && price !== 0) return next(new Error("السعر مطلوب", { cause: 400 }));
+    if (!(name.en || name.fr || name.ar)) {
+        return next(new Error("اسم المنتج مطلوب على الأقل بلغة واحدة", { cause: 400 }));
+    }
+
+    // ✅ تحقق أن القسم موجود
+    const section = await SectionModel.findById(sectionId);
+    if (!section) return next(new Error("القسم غير موجود", { cause: 404 }));
+
+    // ✅ صور المنتج
+    const images = [];
+    if (req.files?.images) {
+        for (const file of req.files.images) {
+            const uploaded = await cloud.uploader.upload(file.path, { folder: "supermarkets/products" });
+            images.push({ secure_url: uploaded.secure_url, public_id: uploaded.public_id });
+        }
+    }
+
+    // ✅ إنشاء المنتج
+    const product = await ProductModelllll.create({
+        supermarket: section.supermarket,
+        section: section._id,
+        name,
+        description,
+        images,
+        price,
+        discount,
+        stock,
+        createdBy: req.user._id
+    });
+
+    return res.status(201).json({ message: "تم إضافة المنتج", data: product });
+});
+
+
+
+
+export const getSupermarket = asyncHandelr(async (req, res, next) => {
+    const { id } = req.params;
+    const lang = req.query.lang; // optional
+
+    const supermarket = await SupermarketModel.findById(id).lean();
+    if (!supermarket) return next(new Error("السوبر ماركت غير موجود", { cause: 404 }));
+
+    // fetch sections and products
+    const sections = await SectionModel.find({ supermarket: id }).lean();
+    const sectionIds = sections.map(s => s._id);
+    const products = await ProductModelllll.find({ supermarket: id }).lean();
+
+    // Helper: localize a multilingual object
+    const localize = (multi, lang) => {
+        if (!lang) return multi;
+        return (multi && multi[lang]) ? multi[lang] : (multi?.en || multi?.fr || multi?.ar || "");
+    };
+
+    // Assemble response
+    const response = {
+        ...supermarket,
+        sections: sections.map(s => ({
+            _id: s._id,
+            name: localize(s.name, lang),
+            description: localize(s.description, lang),
+            createdAt: s.createdAt,
+            updatedAt: s.updatedAt,
+            products: products
+                .filter(p => p.section.toString() === s._id.toString())
+                .map(p => ({
+                    _id: p._id,
+                    name: localize(p.name, lang),
+                    description: localize(p.description, lang),
+                    images: p.images,
+                    price: p.price,
+                    discount: p.discount,
+                    stock: p.stock,
+                    createdAt: p.createdAt,
+                    updatedAt: p.updatedAt
+                }))
+        }))
+    };
+
+    // localize supermarket top-level if lang provided
+    if (lang) {
+        response.name = localize(supermarket.name, lang);
+        response.description = localize(supermarket.description, lang);
+    }
+
+    return res.status(200).json({ data: response });
+});
