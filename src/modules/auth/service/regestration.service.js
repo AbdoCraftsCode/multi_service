@@ -3274,24 +3274,41 @@ export const getSupermarketOrders = async (req, res, next) => {
             });
         }
 
-        // 🟢 فلترة النصوص حسب اللغة
+        // 🟢 فلترة النصوص + إعادة هيكلة المنتجات (Flat structure)
         const formattedOrders = orders.map(order => {
             const formattedProducts = order.products.map(p => {
                 if (p.product) {
                     return {
-                        ...p.toObject(),
-                        product: {
-                            ...p.product.toObject(),
-                            name: p.product.name?.[lang] || p.product.name?.ar || ""
-                        }
+                        _id: p.product._id,
+                        name: p.product.name?.[lang] || p.product.name?.ar || "",
+                        images: p.product.images || [],
+                        price: p.product.price,
+                        discount: p.product.discount,
+                        quantity: p.quantity
                     };
                 }
-                return p;
-            });
+                return null;
+            }).filter(Boolean);
 
             return {
-                ...order.toObject(),
-                products: formattedProducts
+                _id: order._id,
+                user: order.user ? {
+                    _id: order.user._id,
+                    fullName: order.user.fullName,
+                    phone: order.user.phone
+                } : null,
+                supermarket: order.supermarket,
+                products: formattedProducts,
+                customItems: order.customItems,
+                supermarketLocationLink: order.supermarketLocationLink,
+                userLocationLink: order.userLocationLink,
+                addressText: order.addressText,
+                note: order.note,
+                contactPhone: order.contactPhone,
+                status: order.status,
+                totalPrice: order.totalPrice,
+                createdAt: order.createdAt,
+                updatedAt: order.updatedAt
             };
         });
 
@@ -3306,5 +3323,7 @@ export const getSupermarketOrders = async (req, res, next) => {
         next(error);
     }
 };
+
+
 
 
