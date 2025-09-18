@@ -3211,7 +3211,45 @@ export const createOrderSupermarket = async (req, res, next) => {
 
 
 
+export const updateOrderStatusSupermarket = async (req, res, next) => {
+    try {
+        const { orderId } = req.params;
+        const { status } = req.body;
 
+        // تحقق من إرسال الحالة
+        if (!status) {
+            return next(new Error("⚠️ الحالة مطلوبة", { cause: 400 }));
+        }
+
+        // التحقق إن الحالة واحدة من الحالات المسموح بيها
+        const allowedStatuses = ["pending", "accepted", "rejected", "in-progress", "delivered", "cancelled"];
+        if (!allowedStatuses.includes(status)) {
+            return next(new Error("⚠️ الحالة غير صحيحة", { cause: 400 }));
+        }
+
+        // تحديث الطلب
+        const order = await OrderModellllll.findByIdAndUpdate(
+            orderId,
+            { status },
+            { new: true }
+        )
+            .populate("user", "fullName phone email")
+            .populate("products.product", "name price images");
+
+        if (!order) {
+            return next(new Error("❌ لم يتم العثور على الطلب", { cause: 404 }));
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: `✅ تم تحديث حالة الطلب إلى ${status}`,
+            data: order
+        });
+
+    } catch (error) {
+        next(error);
+    }
+};
 export const getSupermarketOrders = async (req, res, next) => {
     try {
         const { supermarketId } = req.params;
