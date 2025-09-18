@@ -30,6 +30,7 @@ import admin from 'firebase-admin';
 import { AppointmentModel } from "../../../DB/models/appointmentSchema.js";
 import rideSchema from "../../../DB/models/rideSchema.js";
 import { ProductModelllll, SectionModel, SupermarketModel } from "../../../DB/models/supermarket.js";
+import { OrderModellllll } from "../../../DB/models/customItemSchemaorder.js";
 
 const AUTHENTICA_API_KEY = process.env.AUTHENTICA_API_KEY || "$2y$10$q3BAdOAyWapl3B9YtEVXK.DHmJf/yaOqF4U.MpbBmR8bwjSxm4A6W";
 const AUTHENTICA_OTP_URL = "https://api.authentica.sa/api/v1/send-otp";
@@ -960,6 +961,11 @@ export const getSupermarketWithSectionsAndProducts = asyncHandelr(async (req, re
         data: sectionsWithProducts
     });
 });
+
+
+
+
+
 
 
 
@@ -3149,3 +3155,118 @@ export const getSupermarketSections = asyncHandelr(async (req, res, next) => {
 
     return res.status(200).json({ data: response });
 });
+
+
+export const createOrderSupermarket = async (req, res, next) => {
+    try {
+        const {
+            supermarket,
+            products,
+            customItems,
+            supermarketLocationLink,
+            userLocationLink,
+            addressText,
+            note,
+            contactPhone
+        } = req.body;
+
+        const userId = req.user._id; // من التوكن
+
+        // 🧮 حساب السعر
+        let totalPrice = 0;
+
+        if (products?.length) {
+            for (const item of products) {
+                const product = await ProductModelllll.findById(item.product);
+                if (!product) continue;
+
+                const priceAfterDiscount = product.price - (product.price * (product.discount || 0) / 100);
+                totalPrice += priceAfterDiscount * (item.quantity || 1);
+            }
+        }
+
+        const order = await OrderModellllll.create({
+            user: userId,
+            supermarket,
+            products,
+            customItems,
+            supermarketLocationLink,
+            userLocationLink,
+            addressText,
+            note,
+            contactPhone,
+            totalPrice
+        });
+
+        return res.status(201).json({
+            success: true,
+            message: "✅ تم إنشاء الطلب بنجاح",
+            data: order
+        });
+
+    } catch (error) {
+        next(error);
+    }
+};
+
+
+
+
+export const getSupermarketOrders = async (req, res, next) => {
+    try {
+        const { supermarketId } = req.params;
+        const lang = req.query.lang || "ar"; // 🟢 اللغة الافتراضية "ar"
+
+        if (!supermarketId) {
+            return next(new Error("⚠️ رقم السوبرماركت مطلوب", { cause: 400 }));
+        }
+
+        // ✅ هات الطلبات الخاصة بالسوبرماركت
+        const orders = await OrderModellllll.find({ supermarket: supermarketId })
+            .sort({ createdAt: -1 })
+            .populate("user", "fullName email phone")
+            .populate("products.product", "name price discount images");
+
+        if (!orders.length) {
+            return res.status(200).json({
+                success: true,
+                message: "ℹ️ لا توجد طلبات لهذا السوبرماركت حالياً",
+                count: 0,
+                data: []
+            });
+        }
+
+        // 🟢 فلترة النصوص حسب اللغة
+        const formattedOrders = orders.map(order => {
+            const formattedProducts = order.products.map(p => {
+                if (p.product) {
+                    return {
+                        ...p.toObject(),
+                        product: {
+                            ...p.product.toObject(),
+                            name: p.product.name?.[lang] || p.product.name?.ar || ""
+                        }
+                    };
+                }
+                return p;
+            });
+
+            return {
+                ...order.toObject(),
+                products: formattedProducts
+            };
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: "✅ تم جلب الطلبات الخاصة بالسوبرماركت بنجاح",
+            count: formattedOrders.length,
+            data: formattedOrders
+        });
+
+    } catch (error) {
+        next(error);
+    }
+};
+
+
