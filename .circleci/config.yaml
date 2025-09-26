@@ -1,0 +1,67 @@
+version: 2.1
+
+jobs:
+  deploy_production:
+    resource_class: "exfresher/merba3"
+    steps:
+      - checkout
+      - run:
+          name: Deploy to Production
+          command: |
+            docker compose down
+            PORT="$PORT" \
+            MOOD="$MOOD" \
+            EXPIRESIN="$EXPIRESIN" \
+            USER_ACCESS_TOKEN="$USER_ACCESS_TOKEN" \
+            USER_REFRESH_TOKEN="$USER_REFRESH_TOKEN" \
+            SYSTEM_ACCESS_TOKEN="$SYSTEM_ACCESS_TOKEN" \
+            SYSTEM_REFRESH_TOKEN="$SYSTEM_REFRESH_TOKEN" \
+            CIENT_I="$CIENT_I" \
+            api_secret="$api_secret" \
+            api_key="$api_key" \
+            cloud_name="$cloud_name" \
+            DB_URL="$DB_URL" \
+            SALT="$SALT" \
+            EMAIL="$EMAIL" \
+            EMAIL_PASSWORD="$EMAIL_PASSWORD" \
+            expiresIn="$expiresIn" \
+            CRYPTO_SECRET_KEY="$CRYPTO_SECRET_KEY" \
+            AUTHENTICA_API_KEY="$AUTHENTICA_API_KEY" \
+            AUTHENTICA_VERIFY_URL="$AUTHENTICA_VERIFY_URL" \
+            AUTHENTICA_OTP_URL="$AUTHENTICA_OTP_URL" \
+            docker compose up -d
+          environment:
+            PORT: $PORT
+            MOOD: $MOOD
+            EXPIRESIN: $EXPIRESIN
+            USER_ACCESS_TOKEN: $USER_ACCESS_TOKEN
+            USER_REFRESH_TOKEN: $USER_REFRESH_TOKEN
+            SYSTEM_ACCESS_TOKEN: $SYSTEM_ACCESS_TOKEN
+            SYSTEM_REFRESH_TOKEN: $SYSTEM_REFRESH_TOKEN
+            CIENT_I: $CIENT_I
+            api_secret: $api_secret
+            api_key: $api_key
+            cloud_name: $cloud_name
+            DB_URL: $DB_URL
+            SALT: $SALT
+            EMAIL: $EMAIL
+            EMAIL_PASSWORD: $EMAIL_PASSWORD
+            expiresIn: $expiresIn
+            CRYPTO_SECRET_KEY: $CRYPTO_SECRET_KEY
+            AUTHENTICA_API_KEY: $AUTHENTICA_API_KEY
+            AUTHENTICA_VERIFY_URL: $AUTHENTICA_VERIFY_URL
+            AUTHENTICA_OTP_URL: $AUTHENTICA_OTP_URL
+      - run:
+          name: Check Running Containers
+          command: docker ps
+
+workflows:
+  deploy:
+    jobs:
+      - deploy_production:
+          filters:
+            branches:
+              only:
+                - main
+            tags:
+              only: /.*/
