@@ -115,7 +115,15 @@ export const signup = asyncHandelr(async (req, res, next) => {
             await sendOTP(phone);
             console.log(`📩 OTP تم إرساله إلى الهاتف: ${phone}`);
         } else if (email) {
-            Emailevent.emit("confirmemail", { email });
+            // Emailevent.emit("confirmemail", { email });
+            await sendemail({
+                to: email,
+                subject: "Confirm Email",
+                text: "رمز التحقق الخاص بك هو 123456", // 👈 نص عادي
+                html: "<h1>رمز التحقق</h1><p>رمزك هو <b>123456</b></p>" // 👈 نسخة HTML
+            });
+
+
             console.log(`📩 OTP تم إرساله إلى البريد: ${email}`);
         }
     } catch (error) {
@@ -3777,6 +3785,7 @@ export const getSupermarketOrders = async (req, res, next) => {
 
 import haversine from "haversine-distance"; // npm i haversine-distance
 import { ServiceModel } from "../../../DB/models/serviceSchema.js";
+import { sendemail } from "../../../utlis/email/sendemail.js";
 
 export const getAcceptedOrders = asyncHandelr(async (req, res, next) => {
     try {
