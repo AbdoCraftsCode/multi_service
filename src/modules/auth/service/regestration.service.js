@@ -31,7 +31,7 @@ import { AppointmentModel } from "../../../DB/models/appointmentSchema.js";
 import rideSchema from "../../../DB/models/rideSchema.js";
 import { ProductModelllll, SectionModel, SupermarketModel } from "../../../DB/models/supermarket.js";
 import { OrderModellllll } from "../../../DB/models/customItemSchemaorder.js";
-
+import { nanoid, customAlphabet } from "nanoid";
 const AUTHENTICA_API_KEY = process.env.AUTHENTICA_API_KEY || "$2y$10$q3BAdOAyWapl3B9YtEVXK.DHmJf/yaOqF4U.MpbBmR8bwjSxm4A6W";
 const AUTHENTICA_OTP_URL = "https://api.authentica.sa/api/v1/send-otp";
 
@@ -115,12 +115,34 @@ export const signup = asyncHandelr(async (req, res, next) => {
             await sendOTP(phone);
             console.log(`📩 OTP تم إرساله إلى الهاتف: ${phone}`);
         } else if (email) {
-            // Emailevent.emit("confirmemail", { email });
+            // 👇 توليد OTP عشوائي 6 أرقام
+            const otp = customAlphabet("0123456789", 6)();
+
+            // 👇 قالب الإيميل
+            const html = vervicaionemailtemplet({ code: otp });
+
+            // 👇 تشفير الـ OTP قبل التخزين
+            const emailOTP = generatehash({ planText: `${otp}` });
+
+            // 👇 صلاحية الكود (10 دقائق)
+            const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+            // 👇 تحديث بيانات الـ OTP في المستخدم
+            await Usermodel.updateOne(
+                { _id: user._id },
+                {
+                    emailOTP,
+                    otpExpiresAt,
+                    attemptCount: 0,
+                }
+            );
+
+            // 👇 إرسال الإيميل
             await sendemail({
                 to: email,
                 subject: "Confirm Email",
-                text: "رمز التحقق الخاص بك هو 123456", // 👈 نص عادي
-                html: "<h1>رمز التحقق</h1><p>رمزك هو <b>123456</b></p>" // 👈 نسخة HTML
+                text: "رمز التحقق الخاص بك",   // 👈 نص عادي عشان Brevo ما يشتكيش
+                html,
             });
 
 
@@ -130,7 +152,6 @@ export const signup = asyncHandelr(async (req, res, next) => {
         console.error("❌ فشل في إرسال OTP:", error.message);
         return next(new Error("فشل في إرسال رمز التحقق", { cause: 500 }));
     }
-
     return successresponse(res, "تم إنشاء الحساب بنجاح، وتم إرسال رمز التحقق", 201);
 });
 
@@ -3786,6 +3807,7 @@ export const getSupermarketOrders = async (req, res, next) => {
 import haversine from "haversine-distance"; // npm i haversine-distance
 import { ServiceModel } from "../../../DB/models/serviceSchema.js";
 import { sendemail } from "../../../utlis/email/sendemail.js";
+import { vervicaionemailtemplet } from "../../../utlis/temblete/vervication.email.js";
 
 export const getAcceptedOrders = asyncHandelr(async (req, res, next) => {
     try {
