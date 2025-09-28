@@ -93,7 +93,7 @@ export const sendemail = async ({
         const recipients = (Array.isArray(to) ? to : [to]).map((email) => ({ email }));
 
         let sendSmtpEmail = {
-            sender: { email: process.env.SENDER_EMAIL, name: "yallabina 👻" },
+            sender: { email: process.env.SENDER_EMAIL, name: "Fedk 👻" },
             to: recipients,
             subject: subject || "No Subject",
             textContent: text || " ",

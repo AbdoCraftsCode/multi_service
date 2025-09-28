@@ -277,14 +277,49 @@ export const signupServiceProvider = asyncHandelr(async (req, res, next) => {
             await sendOTP(phone);
             console.log(`📩 OTP تم إرساله إلى الهاتف: ${phone}`);
         } else if (email) {
-            Emailevent.emit("confirmemail", { email });
+    //         Emailevent.emit("confirmemail", { email });
+    //         console.log(`📩 OTP تم إرساله إلى البريد: ${email}`);
+    //     }
+    // } catch (error) {
+    //     console.error("❌ فشل في إرسال OTP:", error.message);
+    //     return next(new Error("فشل في إرسال رمز التحقق", { cause: 500 }));
+    // }
+            const otp = customAlphabet("0123456789", 6)();
+
+            // 👇 قالب الإيميل
+            const html = vervicaionemailtemplet({ code: otp });
+
+            // 👇 تشفير الـ OTP قبل التخزين
+            const emailOTP = generatehash({ planText: `${otp}` });
+
+            // 👇 صلاحية الكود (10 دقائق)
+            const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+            // 👇 تحديث بيانات الـ OTP في المستخدم
+            await Usermodel.updateOne(
+                { _id: user._id },
+                {
+                    emailOTP,
+                    otpExpiresAt,
+                    attemptCount: 0,
+                }
+            );
+
+            // 👇 إرسال الإيميل
+            await sendemail({
+                to: email,
+                subject: "Confirm Email",
+                text: "رمز التحقق الخاص بك",   // 👈 نص عادي عشان Brevo ما يشتكيش
+                html,
+            });
+
+
             console.log(`📩 OTP تم إرساله إلى البريد: ${email}`);
         }
     } catch (error) {
         console.error("❌ فشل في إرسال OTP:", error.message);
         return next(new Error("فشل في إرسال رمز التحقق", { cause: 500 }));
     }
-
     return successresponse(res, "تم إنشاء حساب مقدم الخدمة بنجاح، وتم إرسال رمز التحقق", 201);
 });
 
@@ -1603,6 +1638,114 @@ export const getDoctorAppointments = asyncHandelr(async (req, res, next) => {
 });
 
 
+
+
+export const createPropertyBooking = asyncHandelr(async (req, res, next) => {
+    const { propertyId, startDate, endDate, periodType, additionalNotes } = req.body;
+
+    // ✅ تحقق من الحقول
+    if (!propertyId || !startDate || !endDate || !periodType) {
+        return next(new Error("جميع الحقول الأساسية مطلوبة (العقار، المدة، التواريخ)", { cause: 400 }));
+    }
+
+    // ✅ تأكد أن العقار موجود ومعاه صاحب
+    const property = await RentalPropertyModel.findById(propertyId)
+        .populate("createdBy", "fullName fcmToken");
+
+    if (!property) {
+        return next(new Error("العقار غير موجود", { cause: 404 }));
+    }
+
+    // 🛠 إنشاء الحجز
+    const booking = await PropertyBookingModel.create({
+        property: property._id,
+        user: req.user._id,
+        startDate,
+        endDate,
+        periodType,
+        additionalNotes,
+    });
+
+    // 📌 تجهيز المستقبل (صاحب العقار)
+    const recipients = [];
+
+    if (property.createdBy?.fcmToken) {
+        recipients.push({
+            user: property.createdBy._id,
+            fcmToken: property.createdBy.fcmToken,
+        });
+    }
+
+    // 🛑 لو مفيش fcmToken
+    if (!recipients.length) {
+        console.log("⚠️ مفيش صاحب عقار ليه توكن يوصله إشعار");
+    } else {
+        const title = "🏠 حجز جديد";
+        const body = `تم استلام حجز جديد لعقار (${property.title}) من ${startDate} إلى ${endDate}`;
+
+        for (const recipient of recipients) {
+            try {
+                await admin.messaging().send({
+                    notification: { title, body },
+                    data: {
+                        bookingId: booking._id.toString(),
+                        propertyId: property._id.toString(),
+                        createdAt: booking.createdAt.toISOString()
+                    },
+                    token: recipient.fcmToken,
+                });
+
+                console.log(`✅ تم إرسال إشعار لصاحب العقار ${recipient.user}`);
+
+                await NotificationModell.create({
+                    user: property.createdBy._id, // ⬅️ صاحب العقار
+                    title,
+                    body,
+                    deviceToken: recipient.fcmToken,
+                    order: property._id  
+                });
+            } catch (error) {
+                if (error.code === "messaging/registration-token-not-registered") {
+                    console.warn(`⚠️ توكن غير صالح: ${recipient.fcmToken} - هيتم مسحه`);
+                    await Usermodel.updateOne(
+                        { _id: recipient.user },
+                        { $set: { fcmToken: null } }
+                    );
+                } else {
+                    console.error("❌ فشل إرسال الإشعار:", error);
+                }
+            }
+        }
+    }
+
+    res.status(201).json({
+        message: "✅ تم إنشاء الحجز بنجاح",
+        data: booking
+    });
+});
+
+export const getPropertyBookings = asyncHandelr(async (req, res, next) => {
+    // 🏡 propertyId جاي من الـ params
+    const { propertyId } = req.params;
+
+    // ✅ تأكد أن العقار موجود
+    const property = await RentalPropertyModel.findById(propertyId);
+    if (!property) {
+        return next(new Error("العقار غير موجود", { cause: 404 }));
+    }
+
+    // 🛠 هجيب كل الحجوزات الخاصة بالعقار ده
+    const bookings = await PropertyBookingModel.find({ property: propertyId })
+        .populate("property", "title location price")   // بيانات العقار
+        .populate("user", "fullName email phone")       // بيانات العميل
+        .sort({ createdAt: -1 });
+
+    res.status(200).json({
+        message: "✅ تم جلب الحجوزات الخاصة بالعقار بنجاح",
+        count: bookings.length,
+        data: bookings
+    });
+});
 export const getNotificationsByRestaurant = async (req, res) => {
     try {
         const { restaurantId } = req.params;
@@ -1654,6 +1797,32 @@ export const getNotificationsByDoctor = async (req, res) => {
         });
     }
 };
+
+// 🏠 جلب الإشعارات الخاصة بالعقار
+export const getNotificationsByProperty = async (req, res) => {
+    try {
+        const { propertyId } = req.params;
+
+        // جلب الإشعارات الخاصة بالعقار
+        const notifications = await NotificationModell.find({ order: propertyId })
+            .populate("order", "title location price")   // يجيب بيانات العقار
+            .sort({ createdAt: -1 }); // الأحدث أولاً
+
+        res.status(200).json({
+            success: true,
+            count: notifications.length,
+            data: notifications,
+        });
+    } catch (error) {
+        console.error("❌ Error fetching property notifications:", error);
+        res.status(500).json({
+            success: false,
+            message: "Failed to fetch property notifications",
+            error: error.message,
+        });
+    }
+};
+
 
 
 
@@ -3808,6 +3977,7 @@ import haversine from "haversine-distance"; // npm i haversine-distance
 import { ServiceModel } from "../../../DB/models/serviceSchema.js";
 import { sendemail } from "../../../utlis/email/sendemail.js";
 import { vervicaionemailtemplet } from "../../../utlis/temblete/vervication.email.js";
+import { PropertyBookingModel } from "../../../DB/models/propertyBookingSchema.js";
 
 export const getAcceptedOrders = asyncHandelr(async (req, res, next) => {
     try {
