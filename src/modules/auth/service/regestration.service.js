@@ -1878,6 +1878,31 @@ export const markAllNotificationsAsReadDoctor = async (req, res) => {
     }
 };
 
+// 🏠 تعليم جميع إشعارات العقار كمقروءة
+export const markAllNotificationsAsReadProperty = async (req, res) => {
+    try {
+        const { propertyId } = req.params;
+
+        // تحديث كل الإشعارات الخاصة بالعقار كـ "مقروءة"
+        const result = await NotificationModell.updateMany(
+            { order: propertyId, isRead: false }, // فقط الغير مقروء
+            { $set: { isRead: true } }
+        );
+
+        res.status(200).json({
+            success: true,
+            message: "✅ تم تعليم كل الإشعارات الخاصة بالعقار كمقروءة",
+            modifiedCount: result.modifiedCount
+        });
+    } catch (error) {
+        console.error("❌ Error marking property notifications as read:", error);
+        res.status(500).json({
+            success: false,
+            message: "Failed to mark property notifications as read",
+            error: error.message,
+        });
+    }
+};
 
 // export const getRestaurantOrders = asyncHandelr(async (req, res, next) => {
 //     const { restaurantId } = req.params; // ⬅️ ناخد id من params
