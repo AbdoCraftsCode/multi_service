@@ -581,6 +581,7 @@ export const updateRentalProperty = asyncHandelr(async (req, res, next) => {
     let updatedData = { ...req.body };
 
     // ✅ دالة آمنة لتحويل النص إلى JSON
+    // ✅ دالة آمنة لتحويل النص إلى JSON
     const tryParse = (val, fallback) => {
         if (typeof val === "string") {
             try {
@@ -593,7 +594,11 @@ export const updateRentalProperty = asyncHandelr(async (req, res, next) => {
     };
 
     // ✅ تجهيز الـ amenities
-    updatedData.amenities = tryParse(updatedData.amenities, {});
+    updatedData.amenities = tryParse(updatedData.amenities, undefined);
+    if (updatedData.amenities === undefined) {
+        delete updatedData.amenities;
+    }
+
 
     // ✅ تجهيز الصور المرسلة (لو مفيش، نخليها null عشان نشتغل على القديمة)
     updatedData.images = tryParse(updatedData.images, null);
@@ -610,34 +615,38 @@ export const updateRentalProperty = asyncHandelr(async (req, res, next) => {
         };
     };
 
-    // 🟢 إدارة الصور (إضافة + حذف + احتفاظ)
-    if (updatedData.images !== null || req.files?.images) {
-        let finalImages = [];
+    // 🟢 إدارة الصور بدون إعادة رفع الكل
+    if (req.body.removedImages || req.files?.images) {
+        let finalImages = Array.isArray(property.images) ? [...property.images] : [];
 
-        // 🟠 لو أرسل قائمة صور يحتفظ بها
-        if (Array.isArray(updatedData.images)) {
-            finalImages = [...updatedData.images];
-        } else {
-            // 🔹 ضمان أن property.images مصفوفة
-            finalImages = Array.isArray(property.images) ? [...property.images] : [];
+        // 🛑 1- حذف الصور اللي اتبعت IDs بتاعها
+        if (req.body.removedImages) {
+            let removedImages = [];
+            try {
+                removedImages = JSON.parse(req.body.removedImages);
+            } catch {
+                removedImages = req.body.removedImages;
+            }
+
+            if (Array.isArray(removedImages)) {
+                for (const imgId of removedImages) {
+                    const img = finalImages.find(c => c.public_id === imgId);
+                    if (img) {
+                        // مسح من Cloudinary
+                        await cloud.uploader.destroy(img.public_id);
+                        // مسح من الـ Array
+                        finalImages = finalImages.filter(c => c.public_id !== imgId);
+                    }
+                }
+            }
         }
 
-        // 🟠 إضافة الصور الجديدة
+        // 🟢 2- إضافة الصور الجديدة
         if (req.files?.images) {
             const files = Array.isArray(req.files.images) ? req.files.images : [req.files.images];
             for (const file of files) {
                 const uploaded = await uploadToCloud(file, `rentalProperties/images`);
                 finalImages.push(uploaded);
-            }
-        }
-
-        // 🟠 حذف الصور القديمة التي لم تعد موجودة
-        const removedImages = (property.images || []).filter(
-            oldImg => !finalImages.some(newImg => newImg.public_id === oldImg.public_id)
-        );
-        for (const img of removedImages) {
-            if (img?.public_id) {
-                await cloud.uploader.destroy(img.public_id);
             }
         }
 
@@ -656,8 +665,11 @@ export const updateRentalProperty = asyncHandelr(async (req, res, next) => {
     const cleanData = updatedProperty.toObject({ versionKey: false });
 
     return successresponse(res, "تم تحديث العقار بنجاح", 200, cleanData);
-
 });
+
+
+
+
 
 
 export const deleteRentalProperty = asyncHandelr(async (req, res, next) => {
