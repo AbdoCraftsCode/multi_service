@@ -1163,7 +1163,6 @@ export const updateDoctor = asyncHandelr(async (req, res, next) => {
 
     updatedData.titles = tryParse(updatedData.titles, doctor.titles);
     updatedData.workingHours = tryParse(updatedData.workingHours, doctor.workingHours);
-    let certificatesFromBody = tryParse(updatedData.certificates, undefined);
 
     const uploadToCloud = async (file, folder) => {
         const isPDF = file.mimetype === "application/pdf";
@@ -1182,22 +1181,33 @@ export const updateDoctor = asyncHandelr(async (req, res, next) => {
         updatedData.profileImage = await uploadToCloud(req.files.profileImage[0], `doctors/profile`);
     }
 
-    // 🟢 إدارة الشهادات بدون فقدان الحقل
-    if (certificatesFromBody !== undefined || req.files?.certificates) {
+    // 🟢 إدارة الشهادات بدون إعادة رفع الكل
+    if (req.body.removedCertificates || req.files?.certificates) {
         let finalCertificates = Array.isArray(doctor.certificates) ? [...doctor.certificates] : [];
 
-        // حذف الشهادات اللي مش موجودة في القائمة الجديدة
-        if (Array.isArray(certificatesFromBody)) {
-            const removedCertificates = finalCertificates.filter(
-                oldCert => !certificatesFromBody.some(newCert => newCert.public_id === oldCert.public_id)
-            );
-            for (const cert of removedCertificates) {
-                if (cert?.public_id) await cloud.uploader.destroy(cert.public_id);
+        // 🛑 1- حذف الشهادات اللي اتبعت IDs بتاعها
+        if (req.body.removedCertificates) {
+            let removedCertificates = [];
+            try {
+                removedCertificates = JSON.parse(req.body.removedCertificates);
+            } catch {
+                removedCertificates = req.body.removedCertificates;
             }
-            finalCertificates = certificatesFromBody;
+
+            if (Array.isArray(removedCertificates)) {
+                for (const certId of removedCertificates) {
+                    const cert = finalCertificates.find(c => c.public_id === certId);
+                    if (cert) {
+                        // مسح من Cloudinary
+                        await cloud.uploader.destroy(cert.public_id);
+                        // مسح من الـ Array
+                        finalCertificates = finalCertificates.filter(c => c.public_id !== certId);
+                    }
+                }
+            }
         }
 
-        // إضافة الشهادات الجديدة
+        // 🟢 2- إضافة الشهادات الجديدة
         if (req.files?.certificates) {
             for (const file of req.files.certificates) {
                 const uploaded = await uploadToCloud(file, `doctors/certificates`);
@@ -3420,6 +3430,9 @@ export const getSupermarket = asyncHandelr(async (req, res, next) => {
 
     return res.status(200).json({ data });
 });
+
+
+
 
 
 export const getSupermarketSections = asyncHandelr(async (req, res, next) => {
