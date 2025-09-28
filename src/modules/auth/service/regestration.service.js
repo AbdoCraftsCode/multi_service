@@ -3443,6 +3443,63 @@ export const getSupermarket = asyncHandelr(async (req, res, next) => {
     return res.status(200).json({ data });
 });
 
+export const getSupermarketAdmin = asyncHandelr(async (req, res, next) => {
+    const { latitude, longitude, lang } = req.query;
+
+    // ✅ تحقق من وجود إحداثيات
+    // if (!latitude || !longitude) {
+    //     return next(new Error("الرجاء إدخال latitude و longitude في الاستعلام", { cause: 400 }));
+    // }
+
+    const userLat = parseFloat(latitude);
+    const userLon = parseFloat(longitude);
+
+    // ✅ هات كل السوبر ماركت
+    const supermarkets = await SupermarketModel.find().lean();
+
+    if (!supermarkets.length) {
+        return res.status(200).json({ message: "لا يوجد سوبر ماركت", data: [] });
+    }
+
+    // ✅ localize function
+    const localize = (multi, lang) => {
+        if (!lang) return multi;
+        return (multi && multi[lang]) ? multi[lang] : (multi?.en || multi?.fr || multi?.ar || "");
+    };
+
+    // ✅ احسب المسافة لكل سوبر ماركت
+    const data = supermarkets.map((sm) => {
+        const smLat = sm.pickup?.latitude;
+        const smLon = sm.pickup?.longitude;
+
+        let distance = null;
+        if (smLat != null && smLon != null) {
+            distance = calculateDistance(userLat, userLon, smLat, smLon);
+        }
+
+        return {
+            _id: sm._id,
+            name: localize(sm.name, lang),
+            description: localize(sm.description, lang),
+            phone: sm.phone,
+            // pickup: sm.pickup,
+            supermarketLocationLink: sm.supermarketLocationLink,
+            image: sm.image,
+            // bannerImages: sm.bannerImages,
+            isOpen: sm.isOpen,
+            distance: distance !== null ? parseFloat(distance.toFixed(2)) : null, // بالكيلومتر
+            createdAt: sm.createdAt,
+            updatedAt: sm.updatedAt
+        };
+    });
+
+    // ✅ رتبهم من الأقرب للأبعد
+    data.sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
+
+    return res.status(200).json({ data });
+});
+
+
 
 
 
