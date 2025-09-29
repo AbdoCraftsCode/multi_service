@@ -3499,8 +3499,103 @@ export const getSupermarketAdmin = asyncHandelr(async (req, res, next) => {
     return res.status(200).json({ data });
 });
 
+export const createUserByOwner = asyncHandelr(async (req, res, next) => {
+    const { fullName, email, accountType, password } = req.body;
+    const ownerId = req.user._id; // الـ Owner داخل بالتوكن
+
+    // ✅ تحقق أن المستخدم الحالي هو Owner
+    if (req.user.accountType !== "Owner") {
+        return res.status(403).json({
+            success: false,
+            message: "❌ غير مصرح لك بإنشاء مستخدمين"
+        });
+    }
+
+    // ✅ تحقق من البيانات الأساسية
+    if (!fullName || !email || !accountType) {
+        return res.status(400).json({
+            success: false,
+            message: "❌ يجب إدخال fullName و email و accountType"
+        });
+    }
+
+    // ✅ تحقق من عدم تكرار البريد
+    const checkuser = await dbservice.findOne({
+        model: Usermodel,
+        filter: { email }
+    });
+
+    if (checkuser) {
+        return next(new Error("❌ البريد الإلكتروني مستخدم من قبل", { cause: 400 }));
+    }
+
+    // ✅ تجهيز كلمة المرور
+    let finalPassword = password;
+    if (!finalPassword) {
+        finalPassword = crypto.randomBytes(4).toString("hex"); // باسورد عشوائي 8 حروف
+    }
+
+    // ✅ تشفير كلمة المرور
+    const hashpassword = await generatehash({ planText: finalPassword });
+
+    // ✅ إنشاء المستخدم
+    const newUser = await dbservice.create({
+        model: Usermodel,
+        data: {
+            fullName,
+            email,
+            accountType,
+            password: hashpassword,
+            isConfirmed: true, // 👈 Owner بيفعل المستخدم مباشرة
+        }
+    });
+
+    return res.status(201).json({
+        success: true,
+        message: "✅ تم إنشاء المستخدم بنجاح",
+        data: {
+            _id: newUser._id,
+            fullName: newUser.fullName,
+            email: newUser.email,
+            accountType: newUser.accountType,
+            isConfirmed: newUser.isConfirmed,
+            generatedPassword: password ? undefined : finalPassword // نرجع الباسورد العشوائي فقط لو Owner ما بعتهوش
+        }
+    });
+});
+
+export const getUsersByOwner = asyncHandelr(async (req, res, next) => {
+    const ownerId = req.user._id;
+
+    if (req.user.accountType !== "Owner") {
+        return res.status(403).json({
+            success: false,
+            message: "❌ غير مصرح لك بجلب المستخدمين"
+        });
+    }
+
+    const { accountType } = req.query; // 👈 فلتر من الكويري
+
+    let filter = {
+        accountType: { $in: ["Admin", "staff", "manager"] } // ✅ فقط الثلاثة دول
+    };
+
+    if (accountType) {
+        filter.accountType = accountType; // لو فيه فلتر من الكويري
+    }
+
+    // 🔎 رجع بس الحقول المطلوبة
+    const users = await Usermodel.find(filter)
+        .select("accountType email role fullName");
 
 
+    return res.status(200).json({
+        success: true,
+        message: "✅ تم جلب المستخدمين",
+        count: users.length,
+        data: users
+    });
+});
 
 
 
@@ -4528,3 +4623,62 @@ export const updateService = asyncHandelr(async (req, res, next) => {
     });
 });
 
+
+
+
+
+import moment from "moment";
+
+export const updateSubscription = asyncHandelr(async (req, res, next) => {
+    const { userId } = req.params;
+    const { addDays } = req.body;
+
+    if (!addDays || addDays <= 0) {
+        return res.status(400).json({ success: false, message: "❌ يجب إدخال عدد أيام صالح" });
+    }
+
+    const user = await Usermodel.findById(userId);
+    if (!user) return res.status(404).json({ success: false, message: "❌ المستخدم غير موجود" });
+
+    const now = new Date();
+
+    // لو الاشتراك مش موجود اصلاً
+    if (!user.subscription) {
+        user.subscription = {
+            planType: "FreeTrial",
+            startDate: now,
+            endDate: moment(now).add(15, "days").toDate()
+        };
+    }
+
+    let currentEnd = user.subscription.endDate;
+
+    if (moment(currentEnd).isBefore(now)) {
+        currentEnd = now; // لو انتهت الاشتراك قبل كده
+    }
+
+    // إضافة الأيام الجديدة
+    const newEndDate = moment(currentEnd).add(addDays, "days").toDate();
+
+    // تحديث البيانات
+    user.subscription.startDate = user.subscription.startDate || now;
+    user.subscription.endDate = newEndDate;
+
+    await user.save();
+
+    // حساب الأيام المتبقية والاستخدام
+    const daysLeft = moment(newEndDate).diff(moment(now), "days");
+    const daysUsed = moment(now).diff(moment(user.subscription.startDate), "days");
+
+    return res.status(200).json({
+        success: true,
+        message: `✅ تم تحديث الاشتراك (${addDays} يوم إضافي)`,
+        data: {
+            startDate: user.subscription.startDate,
+            endDate: user.subscription.endDate,
+            daysLeft,
+            daysUsed,
+            planType: user.subscription.planType
+        }
+    });
+});

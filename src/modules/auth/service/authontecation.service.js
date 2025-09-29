@@ -797,5 +797,60 @@ export const getMyProfile = async (req, res, next) => {
 };
 
 
+export const getMyCompactProfile = async (req, res, next) => {
+    try {
+        const userId = req.user._id;
+
+        // جلب الحقول المطلوبة بما فيها subscription
+        const user = await Usermodel.findById(userId)
+            .select("fullName email phone profiePicture subscription");
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: "⚠️ المستخدم غير موجود"
+            });
+        }
+
+        const now = new Date();
+        const MS_PER_DAY = 1000 * 60 * 60 * 24;
+
+        // نقرأ مباشرة من subscription
+        const startDate = user.subscription?.startDate ? new Date(user.subscription.startDate) : null;
+        const endDate = user.subscription?.endDate ? new Date(user.subscription.endDate) : null;
+        const planType = user.subscription?.planType || "FreeTrial";
+
+        // حساب الأيام المتبقية والايام المستخدمة فقط لو موجود start و end
+        let daysLeft = 0;
+        let daysUsed = 0;
+
+        if (startDate && endDate) {
+            const diffLeftMs = endDate.getTime() - now.getTime();
+            daysLeft = diffLeftMs > 0 ? Math.ceil(diffLeftMs / MS_PER_DAY) : 0;
+
+            const diffUsedMs = now.getTime() - startDate.getTime();
+            daysUsed = diffUsedMs > 0 ? Math.floor(diffUsedMs / MS_PER_DAY) : 0;
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: "✅ تم جلب بيانات البروفايل المختصرة بنجاح",
+            data: {
+                fullName: user.fullName,
+                email: user.email,
+                phone: user.phone,
+                profiePicture: user.profiePicture || null,
+                planType,
+                daysLeft,
+                daysUsed,
+                startDate,
+                endDate
+            }
+        });
+
+    } catch (error) {
+        next(error);
+    }
+};
 
 

@@ -67,7 +67,7 @@ const userSchema = new Schema({
     modelcar: { type: String, default: null },
     accountType: {
         type: String,
-        enum: ['User', 'ServiceProvider', 'Owner', 'manager', 'staff'],
+        enum: ['User', 'ServiceProvider', 'Owner', 'manager', 'staff','Admin'],
         required: true
     },
 
@@ -122,7 +122,14 @@ const userSchema = new Schema({
         public_id: { type: String, default: null }
     },
 
-
+    subscription: {
+        startDate: { type: Date, default: Date.now }, // تاريخ بداية الاشتراك
+        endDate: {
+            type: Date,
+            default: () => new Date(Date.now() + 15 * 24 * 60 * 60 * 1000) // 15 يوم افتراضي
+        },
+        planType: { type: String, default: "FreeTrial" } // FreeTrial | Premium | Custom
+    },
 
     location: {
         type: {
@@ -140,6 +147,21 @@ const userSchema = new Schema({
     toJSON: { virtuals: true },
     toObject: { virtuals: true }
 }); 
+userSchema.virtual("subscriptionDaysLeft").get(function () {
+    if (!this.subscription?.endDate) return null;
+    const diff = Math.ceil(
+        (this.subscription.endDate - new Date()) / (1000 * 60 * 60 * 24)
+    );
+    return diff > 0 ? diff : 0;
+});
+
+userSchema.virtual("subscriptionDaysUsed").get(function () {
+    if (!this.subscription?.startDate) return null;
+    const diff = Math.ceil(
+        (new Date() - this.subscription.startDate) / (1000 * 60 * 60 * 24)
+    );
+    return diff > 0 ? diff : 0;
+});
 
 const Usermodel = mongoose.model("User", userSchema);
 userSchema.index({ location: "2dsphere" });
