@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { validation } from "../../middlewere/validation.middlewere.js";
 import  * as validators from "../auth/auth.validate.js"
-import { addAuthorizedUser, addAuthorizedUserToSupermarket, addProduct, addSection, confirmOTP, createAdminUser, createAppointment, createBranch, createDoctor, createEvaluation, createMainGroup, createMode, createOrder, createOrderSupermarket, createPermissions, createProduct, createPropertyBooking, createQuestion, createRentalProperty, createRestaurant, createService, createSubGroup, createSupermarket, createUserByOwner, deleteAdminUser, deleteBranch, deleteDoctor, deleteMainGroup, deletePermission, deleteRentalProperty, deleteSingleQuestion, deleteSubGroup, findNearbyDrivers, getAcceptedOrders, getAccessibleSupermarket, getAllAdminUsers, getAllNormalUsers, getAllPermissions, getAllRentalProperties, getAllServiceProviders, getBranches, getDoctorAppointments, getDoctors, getDriverHistory, getEvaluations, getMainGroupsForUser, getMainGroupsWithSubGroups, getManagerRestaurants, getMyDoctorProfile, getMyEvaluations, getMyRestaurantsProducts, getMySubGroups, getNotificationsByDoctor, getNotificationsByProperty, getNotificationsByRestaurant, getOwnerRestaurants, getProductsByRestaurant, getPropertyBookings, getQuestionsByMainGroups, getRestaurantOrders, getRestaurants, getServices, getSubGroupsByMainGroup, getSupermarket, getSupermarketAdmin, getSupermarketNotifications, getSupermarketOrders, getSupermarketSections, getSupermarketWithSectionsAndProducts, getUserRentalProperties, getUsersByOwner, markAllNotificationsAsRead, markAllNotificationsAsReadDoctor, markAllNotificationsAsReadProperty, registerRestaurant, sendotpphone, signup, signupServiceProvider, signupwithGmail, updateAdminUser, updateBranch, updateDoctor, updateMainGroup, updateOrderStatus, updateOrderStatusSupermarket, updatePermission, updateRentalProperty, updateService, updateSingleQuestion, updateSubGroup, updateSubscription, updateUser,  } from "./service/regestration.service.js";
+import { addAuthorizedUser, addAuthorizedUserToSupermarket, addProduct, addSection, confirmOTP, createAdminUser, createAppointment, createBranch, createDoctor, createEvaluation, createMainGroup, createMode, createOrder, createOrderSupermarket, createPaidService, createPermissions, createProduct, createPropertyBooking, createQuestion, createRentalProperty, createRestaurant, createService, createSubGroup, createSubscriptionPlan, createSupermarket, createUserByOwner, deleteAdminUser, deleteBranch, deleteDoctor, deleteMainGroup, deletePermission, deleteRentalProperty, deleteSingleQuestion, deleteSubGroup, findNearbyDrivers, getAcceptedOrders, getAccessibleSupermarket, getAllAdminUsers, getAllNormalUsers, getAllPermissions, getAllRentalProperties, getAllServiceProviders, getAllSubscriptionPlans, getBranches, getDoctorAppointments, getDoctors, getDriverHistory, getEvaluations, getMainGroupsForUser, getMainGroupsWithSubGroups, getManagerRestaurants, getMyDoctorProfile, getMyEvaluations, getMyRestaurantsProducts, getMySubGroups, getNotificationsByDoctor, getNotificationsByProperty, getNotificationsByRestaurant, getOwnerRestaurants, getProductsByRestaurant, getPropertyBookings, getQuestionsByMainGroups, getRestaurantOrders, getRestaurants, getServices, getSubGroupsByMainGroup, getSupermarket, getSupermarketAdmin, getSupermarketNotifications, getSupermarketOrders, getSupermarketSections, getSupermarketWithSectionsAndProducts, getUserRentalProperties, getUsersByOwner, markAllNotificationsAsRead, markAllNotificationsAsReadDoctor, markAllNotificationsAsReadProperty, registerRestaurant, sendotpphone, signup, signupServiceProvider, signupwithGmail, updateAdminUser, updateBranch, updateDoctor, updateMainGroup, updateOrderStatus, updateOrderStatusSupermarket, updatePermission, updateRentalProperty, updateService, updateSingleQuestion, updateSubGroup, updateSubscription, updateUser,  } from "./service/regestration.service.js";
 import { confirEachOtp, deleteMyAccount, forgetpassword,   forgetPasswordphone,   forgetPasswordphoneadmin,   getMyCompactProfile,   getMyProfile,   login, loginAdmin, loginRestaurant, loginwithGmail, refreshToken, resendOTP, resetpassword, resetPasswordphone, verifyOTP } from "./service/authontecation.service.js";
 import { authentication, checkRestaurantPermission } from "../../middlewere/authontcation.middlewere.js";
 
@@ -162,6 +162,15 @@ routr.post(
     createService
 );
 
+
+routr.post(
+    "/createPaidService",
+    authentication(),
+    uploadCloudFile(fileValidationTypes.image).fields([{ name: "invoiceImage", maxCount: 1 }]),
+    createPaidService
+);
+
+
 routr.patch(
     "/updateService/:id",
     uploadCloudFile(fileValidationTypes.image).fields([{ name: "servicePicture", maxCount: 1 }]),
@@ -183,6 +192,8 @@ routr.get("/getMyDoctorProfile", authentication(), getMyDoctorProfile)
 routr.delete("/deleteDoctor/:id", authentication(), deleteDoctor)
 routr.post("/registerRestaurant", registerRestaurant)
 routr.post("/verifyOTP", verifyOTP)
+routr.get("/getAllSubscriptionPlans", getAllSubscriptionPlans)
+
 routr.patch("/updateRentalProperty/:id", authentication(),
     uploadCloudFile([
         ...fileValidationTypes.image,
@@ -243,7 +254,7 @@ routr.delete("/deleteAdminUser/:id", authentication(), deleteAdminUser)
 
 routr.put("/updateBranch/:id", authentication(), updateBranch)
 routr.post("/refreshToken", refreshToken)
-
+routr.post("/createSubscriptionPlan", createSubscriptionPlan)
 routr.patch("/updateSubscription/:userId", updateSubscription)
 
 routr.post("/createMainGroup", authentication(), createMainGroup)

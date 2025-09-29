@@ -4628,6 +4628,8 @@ export const updateService = asyncHandelr(async (req, res, next) => {
 
 
 import moment from "moment";
+import SubscriptionPlan from "../../../DB/models/subscriptionPlanSchema.model.js";
+import PaidService from "../../../DB/models/paidServiceSchema.js";
 
 export const updateSubscription = asyncHandelr(async (req, res, next) => {
     const { userId } = req.params;
@@ -4682,3 +4684,89 @@ export const updateSubscription = asyncHandelr(async (req, res, next) => {
         }
     });
 });
+
+
+export const createSubscriptionPlan = async (req, res, next) => {
+    try {
+        const {  price, durationDays  } = req.body;
+
+        if (!price || !durationDays) {
+            return res.status(400).json({
+                success: false,
+                message: "❌ جميع الحقول المطلوبة: name, price, durationDays"
+            });
+        }
+
+        const plan = await SubscriptionPlan.create({ price, durationDays  });
+
+        return res.status(201).json({
+            success: true,
+            message: "✅ تم إنشاء الباقة بنجاح",
+            data: plan
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+
+export const createPaidService = asyncHandelr(async (req, res, next) => {
+    let { serviceName, subscriptionDuration, subscriptionPrice, phoneNumber, doctorId, ownerId } = req.body;
+
+    // 🧹 تنظيف النصوص
+    const trimIfString = (val) => typeof val === "string" ? val.trim() : val;
+    serviceName = trimIfString(serviceName);
+    phoneNumber = trimIfString(phoneNumber);
+
+    // ✅ جلب userId من التوكن
+    const userId = req.user._id;
+
+    // ⬆️ رفع صورة الفاتورة إذا موجودة
+    let uploadedInvoice = null;
+    if (req.files?.invoiceImage?.[0]) {
+        const file = req.files.invoiceImage[0];
+        const uploaded = await cloud.uploader.upload(file.path, {
+            folder: `paid_services/invoices`,
+            resource_type: "image",
+        });
+        uploadedInvoice = {
+            secure_url: uploaded.secure_url,
+            public_id: uploaded.public_id
+        };
+    }
+
+    // إنشاء الخدمة المدفوعة
+    const service = await PaidService.create({
+        serviceName,
+        invoiceImage: uploadedInvoice,
+        subscriptionDuration,
+        subscriptionPrice,
+        phoneNumber,
+        userId,       // من التوكن
+        doctorId,
+        ownerId
+    });
+
+    return res.status(201).json({
+        success: true,
+        message: "✅ تم إنشاء الخدمة المدفوعة بنجاح",
+        data: service
+    });
+});
+
+
+export const getAllSubscriptionPlans = async (req, res, next) => {
+    try {
+        const plans = await SubscriptionPlan.find().sort({ price: 1 }); // ترتيب حسب السعر
+
+        return res.status(200).json({
+            success: true,
+            message: "✅ تم جلب جميع الباقات بنجاح",
+            data: plans
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+
