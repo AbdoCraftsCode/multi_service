@@ -3317,6 +3317,7 @@ export const addSection = asyncHandelr(async (req, res, next) => {
 
 
 
+
 export const addProduct = asyncHandelr(async (req, res, next) => {
     const { sectionId } = req.params;
     let { name = {}, description = {}, price, discount = 0, stock = 0 } = req.body;
@@ -3564,6 +3565,8 @@ export const createUserByOwner = asyncHandelr(async (req, res, next) => {
     });
 });
 
+
+
 export const getUsersByOwner = asyncHandelr(async (req, res, next) => {
     const ownerId = req.user._id;
 
@@ -3594,6 +3597,97 @@ export const getUsersByOwner = asyncHandelr(async (req, res, next) => {
         message: "✅ تم جلب المستخدمين",
         count: users.length,
         data: users
+    });
+});
+
+export const updateUserByOwner = asyncHandelr(async (req, res, next) => {
+    const { id } = req.params; // ID المستخدم اللي هيعدله
+    const { fullName, email, accountType, password } = req.body;
+    const ownerId = req.user._id;
+
+    // ✅ تحقق أن المستخدم الحالي هو Owner
+    if (req.user.accountType !== "Owner") {
+        return res.status(403).json({
+            success: false,
+            message: "❌ غير مصرح لك بتعديل بيانات المستخدمين"
+        });
+    }
+
+    // ✅ ابحث عن المستخدم المطلوب تعديله
+    const user = await Usermodel.findById(id);
+    if (!user) {
+        return res.status(404).json({
+            success: false,
+            message: "❌ المستخدم غير موجود"
+        });
+    }
+
+    // ✅ تحديث الحقول المسموح بها فقط
+    if (fullName) user.fullName = fullName;
+    if (email) user.email = email;
+    if (accountType) user.accountType = accountType;
+
+    if (password) {
+        // لو فيه باسورد جديد → تشفيره
+        const hashpassword = await generatehash({ planText: password });
+        user.password = hashpassword;
+    }
+
+    await user.save();
+
+    return res.status(200).json({
+        success: true,
+        message: "✅ تم تعديل بيانات المستخدم بنجاح",
+        data: {
+            _id: user._id,
+            fullName: user.fullName,
+            email: user.email,
+            accountType: user.accountType
+        }
+    });
+});
+
+
+export const deleteUserByOwner = asyncHandelr(async (req, res, next) => {
+    const { userId } = req.params; // 👈 ID المستخدم المراد حذفه
+    const ownerId = req.user._id;  // 👈 الـ Owner داخل بالتوكن
+
+    // ✅ تحقق أن المستخدم الحالي هو Owner
+    if (req.user.accountType !== "Owner") {
+        return res.status(403).json({
+            success: false,
+            message: "❌ غير مصرح لك بحذف مستخدمين"
+        });
+    }
+
+    // ✅ ابحث عن المستخدم
+    const user = await dbservice.findOne({
+        model: Usermodel,
+        filter: { _id: userId }
+    });
+
+    if (!user) {
+        return res.status(404).json({
+            success: false,
+            message: "❌ المستخدم غير موجود"
+        });
+    }
+
+    // ✅ نحذف المستخدم
+    await dbservice.deleteOne({
+        model: Usermodel,
+        filter: { _id: userId }
+    });
+
+    return res.status(200).json({
+        success: true,
+        message: "✅ تم حذف المستخدم بنجاح",
+        data: {
+            _id: user._id,
+            fullName: user.fullName,
+            email: user.email,
+            accountType: user.accountType
+        }
     });
 });
 
