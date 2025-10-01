@@ -927,7 +927,55 @@ export const orderStatusUpdate = (socket) => {
 
 
 
-// لما العميل يشارك موقعه
+
+// export const userLocationUpdate = (socket) => {
+//     socket.on("userLocationUpdate", async ({ longitude, latitude }) => {
+//         try {
+//             const { data } = await authenticationSocket({ socket });
+//             if (!data.valid) {
+//                 return socket.emit("socketErrorResponse", data);
+//             }
+
+//             if (!longitude || !latitude) {
+//                 return socket.emit("socketErrorResponse", {
+//                     message: "❌ مطلوب إرسال خط الطول والعرض"
+//                 });
+//             }
+
+//             // 📝 خزّن موقع العميل في الـ socket
+//             socket.userLocation = { longitude, latitude };
+
+//             // 🔍 رجّعله السواقين القريبين أول مرة
+//             const drivers = await Usermodel.aggregate([
+//                 {
+//                     $geoNear: {
+//                         near: { type: "Point", coordinates: [longitude, latitude] },
+//                         distanceField: "distance",
+//                         spherical: true,
+//                         maxDistance: 1000000000
+//                     }
+//                 },
+//                 { $match: { serviceType: "Driver" } },
+//                 {
+//                     $project: {
+//                         fullName: 1,
+//                         kiloPrice: 1,   // ✅ سعر الكيلو
+//                         "profilePicture.secure_url": 1, // ✅ الصورة
+//                         // "profilePicture.secure_url": 1,
+//                         distance: { $divide: ["$distance", 1000] }
+//                     }
+//                 }
+//             ]);
+
+//             socket.emit("nearbyDrivers", drivers);
+
+//         } catch (err) {
+//             console.error("Error in userLocationUpdate:", err);
+//             socket.emit("socketErrorResponse", { message: "❌ خطأ داخلي" });
+//         }
+//     });
+// };
+
 export const userLocationUpdate = (socket) => {
     socket.on("userLocationUpdate", async ({ longitude, latitude }) => {
         try {
@@ -955,13 +1003,12 @@ export const userLocationUpdate = (socket) => {
                         maxDistance: 1000000000
                     }
                 },
-                { $match: { serviceType: "Driver" } },
+                { $match: { serviceType: "Driver", isOnline: true } }, // ✅ لازم يكون Driver وأونلاين
                 {
                     $project: {
                         fullName: 1,
                         kiloPrice: 1,   // ✅ سعر الكيلو
                         "profilePicture.secure_url": 1, // ✅ الصورة
-                        // "profilePicture.secure_url": 1,
                         distance: { $divide: ["$distance", 1000] }
                     }
                 }
@@ -976,51 +1023,10 @@ export const userLocationUpdate = (socket) => {
     });
 };
 
-// export const rideRequest = (socket) => {
-//     socket.on("sendRideRequest", async ({ driverId, pickup, dropoff, price }) => {
-//         try {
-//             const { data } = await authenticationSocket({ socket });
-//             if (!data.valid) return socket.emit("socketErrorResponse", data);
 
-//             const io = getIo(); // 🔹 لازم تعريف io قبل أي استخدام
 
-//             console.log("🔎 driverId المطلوب:", driverId);
-//             console.log("🧑‍🤝‍🧑 كل السوكتس:", Array.from(io.sockets.sockets.values()).map(s => ({
-//                 socketId: s.id,
-//                 userId: s.userId
-//             })));
 
-//             // 🔹 خزن موقع العميل في الـ socket
-//             socket.userLocation = pickup;
 
-//             // 🔹 جلب السوك الذي اختاره العميل
-//             const driverSocket = Array.from(io.sockets.sockets.values())
-//                 .find(s => s.userId === driverId);
-
-//             if (!driverSocket) {
-//                 return socket.emit("socketErrorResponse", { message: "❌ السواق غير متصل" });
-//             }
-
-//             // 🔹 إرسال الطلب للسواق المختار فقط
-//             driverSocket.emit("newRideRequest", {
-//                 clientId: data.user._id,
-//                 clientName: data.user.fullName,
-//                 pickup,
-//                 dropoff,
-//                 price
-//             });
-
-//             // 🔹 تأكيد للعميل أن الطلب تم إرساله
-//             socket.emit("rideRequestSent", {
-//                 message: "✅ تم إرسال الطلب للسواق المختار"
-//             });
-
-//         } catch (err) {
-//             console.error("Error in sendRideRequest:", err);
-//             socket.emit("socketErrorResponse", { message: "❌ خطأ أثناء إرسال الطلب" });
-//         }
-//     });
-// };
 
 export const rideRequest = (socket) => {
     socket.on("sendRideRequest", async ({ driverId, pickup, dropoff, price }) => {
