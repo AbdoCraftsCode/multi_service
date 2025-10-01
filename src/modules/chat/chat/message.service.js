@@ -595,6 +595,7 @@ import { NotificationModell } from "../../../DB/models/notificationSchema.js";
 
 // orderStatusUpdate.js
 import admin from 'firebase-admin';
+import { RideRequestModel } from "../../../DB/models/rideRequestSchema.model.js";
 
 export const orderStatusUpdate = (socket) => {
     socket.on("orderStatusUpdate", async ({ orderId }) => {
@@ -1028,62 +1029,6 @@ export const userLocationUpdate = (socket) => {
 
 
 
-// export const rideRequest = (socket) => {
-//     socket.on("sendRideRequest", async ({ driverId, pickup, dropoff, price }) => {
-//         try {
-//             const { data } = await authenticationSocket({ socket });
-//             if (!data.valid) return socket.emit("socketErrorResponse", data);
-
-//             const io = getIo();
-
-//             // ✅ إنشاء الرحلة وتخزينها
-//             const newRide = await rideSchema.create({
-//                 clientId: data.user._id,
-//                 driverId,
-//                 pickup,
-//                 dropoff,
-//                 price
-//             });
-
-//             // 🔹 خزن موقع العميل في الـ socket
-//             socket.userLocation = pickup;
-
-//             // 🔹 جلب السوك الذي اختاره العميل
-//             const driverSocket = Array.from(io.sockets.sockets.values())
-//                 .find(s => s.userId === driverId);
-
-//             if (!driverSocket) {
-//                 return socket.emit("socketErrorResponse", { message: "❌ السواق غير متصل" });
-//             }
-
-//             // 🔹 إرسال الطلب للسواق مع ID الرحلة
-//             driverSocket.emit("newRideRequest", {
-//                 rideId: newRide._id,
-//                 clientId: data.user._id,
-//                 clientName: data.user.fullName,
-//                 pickup,
-//                 dropoff,
-//                 price
-//             });
-
-//             // 🔹 تأكيد للعميل أن الطلب تم إرساله + كل بيانات الرحلة
-//             socket.emit("rideRequestSent", {
-//                 message: "✅ تم إرسال الطلب للسواق المختار",
-//                 rideId: newRide._id,
-//                 clientId: data.user._id,
-//                 driverId,
-//                 pickup,
-//                 dropoff,
-//                 price
-//             });
-
-//         } catch (err) {
-//             console.error("Error in sendRideRequest:", err);
-//             socket.emit("socketErrorResponse", { message: "❌ خطأ أثناء إرسال الطلب" });
-//         }
-//     });
-// };
-
 
 
 export const rideRequest = (socket) => {
@@ -1103,6 +1048,15 @@ export const rideRequest = (socket) => {
                 price
             });
 
+            await RideRequestModel.create({
+                rideId: newRide._id,
+                clientId: data.user._id,
+                clientName: data.user.fullName,
+                pickup,
+                dropoff,
+                price,
+                status: "pending"
+            })
             // 🔹 خزن موقع العميل في الـ socket
             socket.userLocation = pickup;
 
@@ -1123,6 +1077,8 @@ export const rideRequest = (socket) => {
                 dropoff,
                 price
             });
+
+
 
             // ✅ إرسال إشعار FCM للسواق
             try {
