@@ -1049,11 +1049,12 @@ export const rideRequest = (socket) => {
             });
 
             await RideRequestModel.create({
-                rideId: driverId,
+                rideId: newRide._id,
                 clientId: data.user._id,
                 clientName: data.user.fullName,
                 pickup,
                 dropoff,
+                driverId: driverId,
                 price,
                 status: "pending"
             })

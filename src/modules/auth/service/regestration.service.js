@@ -4882,10 +4882,10 @@ export const getAllSubscriptionPlans = async (req, res, next) => {
 
 export const getRideRequestById = async (req, res) => {
     try {
-        const { rideId } = req.params;
+        const { driverId } = req.params;
 
         // ✅ جلب الطلب مع التفاصيل
-        const rideRequest = await RideRequestModel.findOne({ rideId })
+        const rideRequest = await RideRequestModel.findOne({ driverId })
             .populate("clientId", "fullName phone email")   // بيانات العميل
             .populate("rideId"); // جلب بيانات الرحلة نفسها لو محتاج
 
