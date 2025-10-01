@@ -1028,6 +1028,64 @@ export const userLocationUpdate = (socket) => {
 
 
 
+// export const rideRequest = (socket) => {
+//     socket.on("sendRideRequest", async ({ driverId, pickup, dropoff, price }) => {
+//         try {
+//             const { data } = await authenticationSocket({ socket });
+//             if (!data.valid) return socket.emit("socketErrorResponse", data);
+
+//             const io = getIo();
+
+//             // ✅ إنشاء الرحلة وتخزينها
+//             const newRide = await rideSchema.create({
+//                 clientId: data.user._id,
+//                 driverId,
+//                 pickup,
+//                 dropoff,
+//                 price
+//             });
+
+//             // 🔹 خزن موقع العميل في الـ socket
+//             socket.userLocation = pickup;
+
+//             // 🔹 جلب السوك الذي اختاره العميل
+//             const driverSocket = Array.from(io.sockets.sockets.values())
+//                 .find(s => s.userId === driverId);
+
+//             if (!driverSocket) {
+//                 return socket.emit("socketErrorResponse", { message: "❌ السواق غير متصل" });
+//             }
+
+//             // 🔹 إرسال الطلب للسواق مع ID الرحلة
+//             driverSocket.emit("newRideRequest", {
+//                 rideId: newRide._id,
+//                 clientId: data.user._id,
+//                 clientName: data.user.fullName,
+//                 pickup,
+//                 dropoff,
+//                 price
+//             });
+
+//             // 🔹 تأكيد للعميل أن الطلب تم إرساله + كل بيانات الرحلة
+//             socket.emit("rideRequestSent", {
+//                 message: "✅ تم إرسال الطلب للسواق المختار",
+//                 rideId: newRide._id,
+//                 clientId: data.user._id,
+//                 driverId,
+//                 pickup,
+//                 dropoff,
+//                 price
+//             });
+
+//         } catch (err) {
+//             console.error("Error in sendRideRequest:", err);
+//             socket.emit("socketErrorResponse", { message: "❌ خطأ أثناء إرسال الطلب" });
+//         }
+//     });
+// };
+
+
+
 export const rideRequest = (socket) => {
     socket.on("sendRideRequest", async ({ driverId, pickup, dropoff, price }) => {
         try {
@@ -1066,6 +1124,39 @@ export const rideRequest = (socket) => {
                 price
             });
 
+            // ✅ إرسال إشعار FCM للسواق
+            try {
+                const driver = await Usermodel.findById(driverId).select("fcmToken fullName");
+                if (driver?.fcmToken) {
+                    await admin.messaging().send({
+                        notification: {
+                            title: "🚖 طلب مشوار جديد",
+                            body: `📍 ${data.user.fullName} طلب رحلة جديدة`,
+                        },
+                        data: {
+                            rideId: newRide._id.toString(),
+                            clientId: data.user._id.toString(),
+                            driverId: driverId.toString(),
+                            createdAt: newRide.createdAt.toISOString(),
+                        },
+                        token: driver.fcmToken,
+                    });
+
+                    // 📝 تخزين الإشعار في الداتابيز
+                    await NotificationModel.create({
+                        user: driverId,
+                        ride: newRide._id,
+                        title: "🚖 طلب مشوار جديد",
+                        body: `📍 ${data.user.fullName} طلب رحلة جديدة`,
+                        fcmToken: driver.fcmToken,
+                    });
+                } else {
+                    console.log("⚠️ السواق مش معاه fcmToken");
+                }
+            } catch (error) {
+                console.error("❌ فشل إرسال الإشعار:", error);
+            }
+
             // 🔹 تأكيد للعميل أن الطلب تم إرساله + كل بيانات الرحلة
             socket.emit("rideRequestSent", {
                 message: "✅ تم إرسال الطلب للسواق المختار",
@@ -1089,86 +1180,6 @@ export const rideRequest = (socket) => {
 
 
 
-
-
-
-// export const rideResponse = (socket) => {
-//     socket.on("rideResponse", async ({ clientId, accepted, driverLocation, rideId }) => {
-//         try {
-//             const { data } = await authenticationSocket({ socket });
-//             if (!data.valid) return socket.emit("socketErrorResponse", data);
-
-//             const io = getIo();
-
-//             if (driverLocation) {
-//                 socket.userLocation = driverLocation;
-//             }
-
-//             const clientSocket = Array.from(io.sockets.sockets.values())
-//                 .find(s => s.userId === clientId);
-
-//             if (!clientSocket) {
-//                 return socket.emit("socketErrorResponse", { message: "❌ العميل غير متصل" });
-//             }
-
-//             if (accepted) {
-//                 socket.currentClientId = clientId;
-
-//                 if (!socket.userLocation) {
-//                     return socket.emit("socketErrorResponse", { message: "❌ لازم تبعت موقعك الأول" });
-//                 }
-//                 if (!clientSocket.userLocation) {
-//                     return socket.emit("socketErrorResponse", { message: "❌ العميل لم يرسل موقعه" });
-//                 }
-
-//                 // ✅ تحديث حالة الرحلة إلى DONE
-//                 await rideSchema.findByIdAndUpdate(rideId, { status: "DONE" });
-
-//                 function calcDistance(coord1, coord2) {
-//                     const R = 6371;
-//                     const dLat = (coord2.latitude - coord1.latitude) * Math.PI / 180;
-//                     const dLng = (coord2.longitude - coord1.longitude) * Math.PI / 180;
-//                     const a = Math.sin(dLat / 2) ** 2 +
-//                         Math.cos(coord1.latitude * Math.PI / 180) *
-//                         Math.cos(coord2.latitude * Math.PI / 180) *
-//                         Math.sin(dLng / 2) ** 2;
-//                     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-//                     return R * c;
-//                 }
-
-//                 const distance = calcDistance(socket.userLocation, clientSocket.userLocation);
-
-//                 clientSocket.emit("rideAccepted", {
-//                     rideId,
-//                     driverId: data.user._id,
-//                     driverName: data.user.fullName,
-//                     driverLocation: socket.userLocation,
-//                     distance: distance.toFixed(2)
-//                 });
-
-//                 socket.emit("responseSent", { message: "✅ أرسلت موافقة للعميل" });
-
-//             } else {
-//                 // ❌ رفض الرحلة
-//                 await rideSchema.findByIdAndUpdate(rideId, { status: "CANCELLED" });
-
-//                 clientSocket.emit("rideRejected", {
-//                     rideId,
-//                     driverId: data.user._id,
-//                     driverName: data.user.fullName
-//                 });
-
-//                 socket.emit("responseSent", { message: "✅ أرسلت رفض للعميل" });
-//             }
-
-//         } catch (err) {
-//             console.error("Error in rideResponse:", err);
-//             socket.emit("socketErrorResponse", { message: "❌ خطأ أثناء إرسال رد الطلب" });
-//         }
-//     });
-// };
-   
-// rideResponse.js
 export const rideResponse = (socket) => {
     socket.on("rideResponse", async ({ clientId, accepted, driverLocation, rideId }) => {
         try {
@@ -1224,6 +1235,25 @@ export const rideResponse = (socket) => {
                     distance: distance.toFixed(2)
                 });
 
+                // ✅ إرسال إشعار FCM للعميل بقبول الرحلة
+                try {
+                    const client = await Usermodel.findById(clientId).select("fcmToken");
+                    if (client?.fcmToken) {
+                        await admin.messaging().send({
+                            notification: {
+                                title: "🚖 تم قبول رحلتك",
+                                body: `${data.user.fullName} وافق على توصيلك 🚗`,
+                            },
+                            data: { rideId: rideId.toString(), status: "ACCEPTED" },
+                            token: client.fcmToken,
+                        });
+                    }
+                } catch (error) {
+                    console.error("❌ فشل إرسال إشعار القبول:", error);
+                }
+
+
+
                 socket.emit("responseSent", { message: "✅ أرسلت موافقة للعميل", rideId });
 
             } else {
@@ -1235,6 +1265,24 @@ export const rideResponse = (socket) => {
                     driverId: data.user._id,
                     driverName: data.user.fullName
                 });
+
+                // ✅ إرسال إشعار FCM للعميل برفض الرحلة
+                try {
+                    const client = await Usermodel.findById(clientId).select("fcmToken");
+                    if (client?.fcmToken) {
+                        await admin.messaging().send({
+                            notification: {
+                                title: "❌ تم رفض رحلتك",
+                                body: `${data.user.fullName} اعتذر عن الرحلة.`,
+                            },
+                            data: { rideId: rideId.toString(), status: "REJECTED" },
+                            token: client.fcmToken,
+                        });
+                    }
+                } catch (error) {
+                    console.error("❌ فشل إرسال إشعار الرفض:", error);
+                }
+
 
                 socket.emit("responseSent", { message: "✅ أرسلت رفض للعميل" });
             }
@@ -1258,6 +1306,23 @@ export const rideResponse = (socket) => {
             if (clientSocket) {
                 clientSocket.emit("rideStatusUpdate", { rideId, status: "driver on the way" });
             }
+            // ✅ إرسال إشعار FCM للعميل ببدء الرحلة
+            try {
+                const client = await Usermodel.findById(ride.clientId).select("fcmToken");
+                if (client?.fcmToken) {
+                    await admin.messaging().send({
+                        notification: {
+                            title: "🚕 السواق في الطريق",
+                            body: "سواقك بدأ التحرك وجاي في الطريق 🛣️",
+                        },
+                        data: { rideId: rideId.toString(), status: "STARTED" },
+                        token: client.fcmToken,
+                    });
+                }
+            } catch (error) {
+                console.error("❌ فشل إرسال إشعار بدء الرحلة:", error);
+            }
+
 
             socket.emit("rideStatusUpdate", { rideId, status: "driver on the way" });
         } catch (err) {
@@ -1279,6 +1344,23 @@ export const rideResponse = (socket) => {
             if (clientSocket) {
                 clientSocket.emit("rideStatusUpdate", { rideId, status: "ongoing finished" });
             }
+            // ✅ إرسال إشعار FCM للعميل بإنهاء الرحلة
+            try {
+                const client = await Usermodel.findById(ride.clientId).select("fcmToken");
+                if (client?.fcmToken) {
+                    await admin.messaging().send({
+                        notification: {
+                            title: "🏁 الرحلة انتهت",
+                            body: "شكراً لاستخدامك خدمتنا 🚖 نتمنى لك يوماً سعيداً!",
+                        },
+                        data: { rideId: rideId.toString(), status: "FINISHED" },
+                        token: client.fcmToken,
+                    });
+                }
+            } catch (error) {
+                console.error("❌ فشل إرسال إشعار إنهاء الرحلة:", error);
+            }
+
 
             socket.emit("rideStatusUpdate", { rideId, status: "ongoing finished" });
         } catch (err) {
