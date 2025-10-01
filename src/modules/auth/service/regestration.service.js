@@ -4739,6 +4739,7 @@ export const updateService = asyncHandelr(async (req, res, next) => {
 import moment from "moment";
 import SubscriptionPlan from "../../../DB/models/subscriptionPlanSchema.model.js";
 import PaidService from "../../../DB/models/paidServiceSchema.js";
+import { RideRequestModel } from "../../../DB/models/rideRequestSchema.model.js";
 
 export const updateSubscription = asyncHandelr(async (req, res, next) => {
     const { userId } = req.params;
@@ -4875,6 +4876,37 @@ export const getAllSubscriptionPlans = async (req, res, next) => {
         });
     } catch (error) {
         next(error);
+    }
+};
+
+
+export const getRideRequestById = async (req, res) => {
+    try {
+        const { rideId } = req.params;
+
+        // ✅ جلب الطلب مع التفاصيل
+        const rideRequest = await RideRequestModel.findOne({ rideId })
+            .populate("clientId", "fullName phone email")   // بيانات العميل
+            .populate("rideId"); // جلب بيانات الرحلة نفسها لو محتاج
+
+        if (!rideRequest) {
+            return res.status(404).json({
+                success: false,
+                message: "❌ الطلب غير موجود"
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            data: rideRequest
+        });
+
+    } catch (err) {
+        console.error("❌ Error in getRideRequestById:", err);
+        return res.status(500).json({
+            success: false,
+            message: "⚠️ خطأ أثناء جلب بيانات الطلب"
+        });
     }
 };
 
