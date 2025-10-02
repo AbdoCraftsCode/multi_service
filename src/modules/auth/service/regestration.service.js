@@ -4886,7 +4886,7 @@ export const getRideRequestById = async (req, res) => {
 
         // ✅ جلب الطلب مع التفاصيل
         const rideRequest = await RideRequestModel.findOne({ driverId })
-            .populate("clientId", "fullName")   // بيانات العميل
+          // بيانات العميل
            ; // جلب بيانات الرحلة نفسها لو محتاج
 
         if (!rideRequest) {
