@@ -417,6 +417,34 @@ export const getDriverHistory = asyncHandelr(async (req, res) => {
 
 
 
+export const getClinetHistory = asyncHandelr(async (req, res) => {
+    const { clientId } = req.params;
+
+    if (!clientId) {
+        return res.status(400).json({
+            success: false,
+            message: "❌ لازم تبعت clientId",
+        });
+    }
+
+    const rides = await rideSchema.find({
+        clientId,
+        status: { $in: ["ongoing finished", "CANCELLED", "driver on the way", "PENDING","DONE"] }
+    })
+        .populate("driverId", "fullName email phone") // لو عايز بيانات العميل
+        .sort({ createdAt: -1 }); // أحدث الأول
+
+    res.json({
+        success: true,
+        message: "✅ تم جلب الرحلات",
+        count: rides.length,
+        data: rides
+    });
+});
+
+
+
+
 export const findNearbyDrivers = asyncHandelr(async (req, res, next) => {
     const { longitude, latitude } = req.body;
 
