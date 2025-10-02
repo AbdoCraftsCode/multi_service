@@ -1167,7 +1167,7 @@ export const rideResponse = (socket) => {
                 }
 
                 // ✅ تحديث حالة الرحلة إلى DONE (تم القبول كبداية)
-                await rideSchema.findByIdAndUpdate(rideId, { status: "DONE" });
+                await rideSchema.findByIdAndUpdate(rideId, { status: "ACCEPTED" });
 
                 function calcDistance(coord1, coord2) {
                     const R = 6371;
