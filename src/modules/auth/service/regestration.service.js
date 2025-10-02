@@ -4908,25 +4908,65 @@ export const getAllSubscriptionPlans = async (req, res, next) => {
 };
 
 
+// export const getRideRequestById = async (req, res) => {
+//     try {
+//         const { driverId } = req.params;
+
+//         // ✅ جلب الطلب مع التفاصيل
+//         const rideRequest = await rideSchema.find({ driverId })
+//           // بيانات العميل
+//            ; // جلب بيانات الرحلة نفسها لو محتاج
+
+//         if (!rideRequest) {
+//             return res.status(404).json({
+//                 success: false,
+//                 message: "❌ الطلب غير موجود"
+//             });
+//         }
+
+//         return res.status(200).json({
+//             success: true,
+//             data: rideRequest
+//         });
+
+//     } catch (err) {
+//         console.error("❌ Error in getRideRequestById:", err);
+//         return res.status(500).json({
+//             success: false,
+//             message: "⚠️ خطأ أثناء جلب بيانات الطلب"
+//         });
+//     }
+// };
+
 export const getRideRequestById = async (req, res) => {
     try {
         const { driverId } = req.params;
 
-        // ✅ جلب الطلب مع التفاصيل
-        const rideRequest = await RideRequestModel.find({ driverId })
-          // بيانات العميل
-           ; // جلب بيانات الرحلة نفسها لو محتاج
+        // ✅ جلب كل الطلبات الخاصة بالسواق
+        const rides = await rideSchema.find({ driverId }).lean();
 
-        if (!rideRequest) {
+        if (!rides || rides.length === 0) {
             return res.status(404).json({
                 success: false,
-                message: "❌ الطلب غير موجود"
+                message: "❌ لا يوجد طلبات لهذا السواق"
             });
         }
 
+        // 🔹 نضيف rideId و clientName لكل طلب
+        const ridesWithExtra = await Promise.all(
+            rides.map(async (ride) => {
+                const client = await Usermodel.findById(ride.clientId).select("fullName");
+                return {
+                    ...ride,
+                    rideId: ride._id,
+                    clientName: client ? client.fullName : "غير معروف",
+                };
+            })
+        );
+
         return res.status(200).json({
             success: true,
-            data: rideRequest
+            data: ridesWithExtra
         });
 
     } catch (err) {
@@ -4937,5 +4977,3 @@ export const getRideRequestById = async (req, res) => {
         });
     }
 };
-
-
