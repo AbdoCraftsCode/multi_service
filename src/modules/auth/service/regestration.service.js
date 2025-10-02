@@ -4885,7 +4885,7 @@ export const getRideRequestById = async (req, res) => {
         const { driverId } = req.params;
 
         // ✅ جلب الطلب مع التفاصيل
-        const rideRequest = await RideRequestModel.findOne({ driverId })
+        const rideRequest = await RideRequestModel.find({ driverId })
           // بيانات العميل
            ; // جلب بيانات الرحلة نفسها لو محتاج
 
