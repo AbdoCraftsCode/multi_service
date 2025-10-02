@@ -4768,6 +4768,7 @@ import moment from "moment";
 import SubscriptionPlan from "../../../DB/models/subscriptionPlanSchema.model.js";
 import PaidService from "../../../DB/models/paidServiceSchema.js";
 import { RideRequestModel } from "../../../DB/models/rideRequestSchema.model.js";
+import PaidServiceDrivers from "../../../DB/models/PaidServiceDrivers.js";
 
 export const updateSubscription = asyncHandelr(async (req, res, next) => {
     const { userId } = req.params;
@@ -4893,6 +4894,53 @@ export const createPaidService = asyncHandelr(async (req, res, next) => {
 });
 
 
+
+export const createPaidServiceDrivers = asyncHandelr(async (req, res, next) => {
+    let { serviceName, PonitsNumber, phoneNumber } = req.body;
+
+    // 🧹 تنظيف النصوص
+    const trimIfString = (val) => typeof val === "string" ? val.trim() : val;
+    serviceName = trimIfString(serviceName);
+    phoneNumber = trimIfString(phoneNumber);
+
+    // ✅ جلب userId من التوكن
+    const userId = req.user._id;
+
+    // ⬆️ رفع صورة الفاتورة إذا موجودة
+    let uploadedInvoice = null;
+    if (req.files?.invoiceImage?.[0]) {
+        const file = req.files.invoiceImage[0];
+        const uploaded = await cloud.uploader.upload(file.path, {
+            folder: `paid_services/invoices`,
+            resource_type: "image",
+        });
+        uploadedInvoice = {
+            secure_url: uploaded.secure_url,
+            public_id: uploaded.public_id
+        };
+    }
+
+    // إنشاء الخدمة المدفوعة
+    const service = await PaidServiceDrivers.create({
+        serviceName,
+        invoiceImage: uploadedInvoice,
+        PonitsNumber,
+        phoneNumber,
+        userId,      // من التوكن
+     
+    });
+
+    return res.status(201).json({
+        success: true,
+        message: "✅ تم إنشاء الخدمة المدفوعة بنجاح",
+        data: service
+    });
+});
+
+
+
+
+
 export const getAllSubscriptionPlans = async (req, res, next) => {
     try {
         const plans = await SubscriptionPlan.find().sort({ price: 1 }); // ترتيب حسب السعر
@@ -4977,3 +5025,6 @@ export const getRideRequestById = async (req, res) => {
         });
     }
 };
+
+
+
