@@ -4415,6 +4415,94 @@ export const getAcceptedOrders = asyncHandelr(async (req, res, next) => {
 
 
 
+export const getDeliveredOrdersByDriver = asyncHandelr(async (req, res, next) => {
+    try {
+        const { driverId, lang = "ar" } = req.query;
+
+        if (!driverId) {
+            return next(new Error("❌ لازم تبعت driverId", { cause: 400 }));
+        }
+
+        // 🛠 هات الطلبات من المطاعم
+        const restaurantOrders = await OrderModel.find({
+            status: "delivered",
+            assignedDriver: driverId
+        })
+            .populate("restaurant", "name")
+            .populate("createdBy", "name email");
+
+        // 🛠 هات الطلبات من السوبرماركت
+        const supermarketOrders = await OrderModellllll.find({
+            status: "delivered",
+            assignedDriver: driverId
+        })
+            .populate("supermarket", "name")
+            .populate("user", "name email")
+            .populate("products.product", "name price");
+
+        // 📌 دمج الاثنين
+        const allOrders = [
+            // ✅ مطاعم
+            ...restaurantOrders.map(order => {
+                const o = order.toObject();
+                return {
+                    ...o,
+                    type: "restaurant",
+                    products: (o.products || []).map(p => ({
+                        name: typeof p.name === "object" ? (p.name[lang] || p.name["ar"]) : p.name,
+                        price: p.price,
+                        quantity: p.quantity
+                    }))
+                };
+            }),
+
+            // ✅ سوبرماركت
+            ...supermarketOrders.map(order => {
+                const o = order.toObject();
+
+                const formattedProducts = (o.products || []).map(p => ({
+                    name: typeof p.product?.name === "object"
+                        ? (p.product?.name[lang] || p.product?.name["ar"])
+                        : p.product?.name || "منتج غير معروف",
+                    price: p.product?.price || 0,
+                    quantity: p.quantity
+                }));
+
+                return {
+                    ...o,
+                    type: "supermarket",
+                    supermarket: {
+                        ...o.supermarket,
+                        name: typeof o.supermarket?.name === "object"
+                            ? (o.supermarket?.name[lang] || o.supermarket?.name["ar"])
+                            : o.supermarket?.name
+                    },
+                    products: formattedProducts,
+                    customItems: o.customItems || []
+                };
+            })
+        ];
+
+        res.status(200).json({
+            success: true,
+            message: "✅ تم جلب الطلبات التي تم تسليمها لهذا السائق",
+            count: allOrders.length,
+            data: allOrders
+        });
+
+    } catch (error) {
+        next(error);
+    }
+});
+
+
+
+
+
+
+
+
+
 // ✅ إنشاء الطلب
 export const createOrder = asyncHandelr(async (req, res, next) => {
     let {
