@@ -4996,12 +4996,13 @@ export const getRideRequestById = async (req, res) => {
             status: { $nin: ["ongoing finished", "CANCELLED"] }
         }).lean();
 
-        if (!rides || rides.length === 0) {
-            return res.status(404).json({
-                success: false,
-                message: "❌ لا يوجد طلبات لهذا السواق"
-            });
-        }
+  if (!rides || rides.length === 0) {
+    return res.status(200).json({
+        success: true,
+        data: []
+    });
+}
+
 
         // 🔹 نضيف rideId و clientName لكل طلب
         const ridesWithExtra = await Promise.all(
