@@ -414,7 +414,7 @@ export const getDriverHistory = asyncHandelr(async (req, res) => {
         data: rides
     });
 });
-
+ 
 
 
 export const getClinetHistory = asyncHandelr(async (req, res) => {
@@ -4990,8 +4990,11 @@ export const getRideRequestById = async (req, res) => {
     try {
         const { driverId } = req.params;
 
-        // ✅ جلب كل الطلبات الخاصة بالسواق
-        const rides = await rideSchema.find({ driverId }).lean();
+        // ✅ جلب كل الطلبات الخاصة بالسواق مع استبعاد الرحلات المنتهية أو الملغية
+        const rides = await rideSchema.find({
+            driverId,
+            status: { $nin: ["ongoing finished", "CANCELLED"] }
+        }).lean();
 
         if (!rides || rides.length === 0) {
             return res.status(404).json({
