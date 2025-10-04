@@ -429,7 +429,7 @@ export const getClinetHistory = asyncHandelr(async (req, res) => {
 
     const rides = await rideSchema.find({
         clientId,
-        status: { $in: ["ongoing finished", "CANCELLED", "driver on the way", "PENDING","DONE"] }
+        status: { $in: ["ongoing finished", "CANCELLED", "driver on the way", "PENDING", "DONE","ACCEPTED"] }
     })
         .populate("driverId", "fullName email phone") // لو عايز بيانات العميل
         .sort({ createdAt: -1 }); // أحدث الأول
