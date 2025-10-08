@@ -114,46 +114,283 @@ export const signup = asyncHandelr(async (req, res, next) => {
         if (phone) {
             await sendOTP(phone);
             console.log(`📩 OTP تم إرساله إلى الهاتف: ${phone}`);
-        } else if (email) {
-            // 👇 توليد OTP عشوائي 6 أرقام
+        }
+        else if (email) {
             const otp = customAlphabet("0123456789", 6)();
-
-            // 👇 قالب الإيميل
             const html = vervicaionemailtemplet({ code: otp });
 
-            // 👇 تشفير الـ OTP قبل التخزين
-            const emailOTP = generatehash({ planText: `${otp}` });
+            // 👇 هنا كانت المشكلة – لازم await
+            const emailOTP = await generatehash({ planText: `${otp}` });
 
-            // 👇 صلاحية الكود (10 دقائق)
             const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
-            // 👇 تحديث بيانات الـ OTP في المستخدم
             await Usermodel.updateOne(
                 { _id: user._id },
-                {
-                    emailOTP,
-                    otpExpiresAt,
-                    attemptCount: 0,
-                }
+                { emailOTP, otpExpiresAt, attemptCount: 0 }
             );
 
-            // 👇 إرسال الإيميل
             await sendemail({
                 to: email,
                 subject: "Confirm Email",
-                text: "رمز التحقق الخاص بك",   // 👈 نص عادي عشان Brevo ما يشتكيش
+                text: "رمز التحقق الخاص بك",
                 html,
             });
 
-
             console.log(`📩 OTP تم إرساله إلى البريد: ${email}`);
         }
+
+        
+        
+        // else if (email) {
+        //     // 👇 توليد OTP عشوائي 6 أرقام
+        //     const otp = customAlphabet("0123456789", 6)();
+
+        //     // 👇 قالب الإيميل
+        //     const html = vervicaionemailtemplet({ code: otp });
+
+        //     // 👇 تشفير الـ OTP قبل التخزين
+        //     const emailOTP = generatehash({ planText: `${otp}` });
+
+        //     // 👇 صلاحية الكود (10 دقائق)
+        //     const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+        //     // 👇 تحديث بيانات الـ OTP في المستخدم
+        //     await Usermodel.updateOne(
+        //         { _id: user._id },
+        //         {
+        //             emailOTP,
+        //             otpExpiresAt,
+        //             attemptCount: 0,
+        //         }
+        //     );
+
+        //     // 👇 إرسال الإيميل
+        //     await sendemail({
+        //         to: email,
+        //         subject: "Confirm Email",
+        //         text: "رمز التحقق الخاص بك",   // 👈 نص عادي عشان Brevo ما يشتكيش
+        //         html,
+        //     });
+
+
+        //     console.log(`📩 OTP تم إرساله إلى البريد: ${email}`);
+        // }
     } catch (error) {
         console.error("❌ فشل في إرسال OTP:", error.message);
         return next(new Error("فشل في إرسال رمز التحقق", { cause: 500 }));
     }
     return successresponse(res, "تم إنشاء الحساب بنجاح، وتم إرسال رمز التحقق", 201);
 });
+
+
+
+
+export const forgetPassword = asyncHandelr(async (req, res, next) => {
+    const { email, phone } = req.body;
+
+    // ✅ التحقق من إدخال بريد إلكتروني أو رقم هاتف
+    if (!email && !phone) {
+        return next(new Error("❌ يجب إدخال البريد الإلكتروني أو رقم الهاتف", { cause: 400 }));
+    }
+
+    // 🔍 البحث عن المستخدم حسب المدخل
+    const user = await Usermodel.findOne({
+        $or: [
+            ...(email ? [{ email }] : []),
+            ...(phone ? [{ phone }] : [])
+        ]
+    });
+
+    if (!user) {
+        return next(new Error("❌ المستخدم غير موجود", { cause: 404 }));
+    }
+
+    // ✅ لو فيه رقم هاتف
+    if (phone) {
+        try {
+            const response = await axios.post(
+                AUTHENTICA_OTP_URL,
+                {
+                    phone,
+                    method: "whatsapp", // أو "sms" لو عايز
+                    number_of_digits: 6,
+                    otp_format: "numeric",
+                    is_fallback_on: 0
+                },
+                {
+                    headers: {
+                        "X-Authorization": AUTHENTICA_API_KEY,
+                        "Content-Type": "application/json",
+                        "Accept": "application/json"
+                    },
+                }
+            );
+
+            console.log("✅ OTP تم إرساله بنجاح:", response.data);
+            return res.json({ success: true, message: "✅ تم إرسال كود التحقق إلى رقم الهاتف" });
+        } catch (error) {
+            console.error("❌ فشل في إرسال OTP للهاتف:", error.response?.data || error.message);
+            return res.status(500).json({
+                success: false,
+                error: "❌ فشل في إرسال كود التحقق عبر الهاتف",
+                details: error.response?.data || error.message
+            });
+        }
+    }
+
+    // ✅ لو فيه بريد إلكتروني
+    if (email) {
+        try {
+            // 👇 توليد OTP عشوائي 6 أرقام
+            const otp = customAlphabet("0123456789", 6)();
+
+            // 👇 إنشاء قالب الإيميل
+            const html = vervicaionemailtemplet({ code: otp });
+
+            // 👇 تشفير الكود وتخزينه مؤقتًا
+            const hashedOtp = await generatehash({ planText: otp });
+            const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+            await Usermodel.updateOne(
+                { _id: user._id },
+                { emailOTP: hashedOtp, otpExpiresAt, attemptCount: 0 }
+            );
+
+
+            // 👇 إرسال الإيميل
+            await sendemail({
+                to: email,
+                subject: "🔐 استعادة كلمة المرور",
+                text: "رمز استعادة كلمة المرور",
+                html,
+            });
+
+            console.log(`📩 تم إرسال الكود إلى البريد: ${email}`);
+            return res.json({ success: true, message: "✅ تم إرسال كود التحقق إلى البريد الإلكتروني" });
+        } catch (error) {
+            console.error("❌ فشل في إرسال كود عبر البريد:", error.message);
+            return res.status(500).json({
+                success: false,
+                error: "❌ فشل في إرسال كود التحقق عبر البريد",
+                details: error.message
+            });
+        }
+    }
+});
+
+
+export const resetPassword = asyncHandelr(async (req, res, next) => {
+    const { email, phone, otp, newPassword } = req.body;
+
+    if ((!email && !phone) || !otp || !newPassword) {
+        return next(new Error("❌ برجاء إدخال (إيميل أو رقم هاتف) + كود التحقق + كلمة المرور الجديدة", { cause: 400 }));
+    }
+
+    // 🔍 البحث عن المستخدم
+    const user = await Usermodel.findOne({
+        $or: [
+            ...(email ? [{ email }] : []),
+            ...(phone ? [{ phone }] : [])
+        ]
+    });
+
+    if (!user) return next(new Error("❌ المستخدم غير موجود", { cause: 404 }));
+
+    // ✅ في حالة المستخدم سجل بالبريد الإلكتروني
+    if (email) {
+        // تحقق من وجود الكود
+        if (!user.emailOTP) {
+            return next(new Error("❌ لم يتم إرسال كود تحقق لهذا الحساب", { cause: 400 }));
+        }
+
+        // تحقق من انتهاء الصلاحية
+        if (Date.now() > new Date(user.otpExpiresAt).getTime()) {
+            return next(new Error("❌ انتهت صلاحية كود التحقق", { cause: 400 }));
+        }
+
+        // تحقق من عدد المحاولات الفاشلة
+        if (user.blockUntil && Date.now() < new Date(user.blockUntil).getTime()) {
+            const remaining = Math.ceil((new Date(user.blockUntil).getTime() - Date.now()) / 1000);
+            return next(new Error(`🚫 تم حظرك مؤقتًا، حاول بعد ${remaining} ثانية`, { cause: 429 }));
+        }
+
+        // تحقق من الكود فعليًا
+        const isValidOTP = await comparehash({
+            planText: `${otp}`,
+            valuehash: user.emailOTP,
+        });
+
+        if (!isValidOTP) {
+            const attempts = (user.attemptCount || 0) + 1;
+
+            if (attempts >= 5) {
+                await Usermodel.updateOne({ email }, {
+                    blockUntil: new Date(Date.now() + 2 * 60 * 1000), // حظر دقيقتين
+                    attemptCount: 0
+                });
+                return next(new Error("🚫 تم حظرك مؤقتًا بعد محاولات خاطئة كثيرة", { cause: 429 }));
+            }
+
+            await Usermodel.updateOne({ email }, { attemptCount: attempts });
+            return next(new Error("❌ كود التحقق غير صحيح", { cause: 400 }));
+        }
+
+        // ✅ الكود صحيح → تحديث الباسوورد
+        const hashedPassword = await generatehash({ planText: newPassword });
+        await Usermodel.updateOne(
+            { email },
+            {
+                password: hashedPassword,
+                $unset: {
+                    emailOTP: 0,
+                    otpExpiresAt: 0,
+                    attemptCount: 0,
+                    blockUntil: 0,
+                },
+            }
+        );
+
+        return successresponse(res, "✅ تم تغيير كلمة المرور بنجاح عبر البريد الإلكتروني", 200);
+    }
+
+    // ✅ في حالة رقم الهاتف
+    if (phone) {
+        try {
+            const response = await axios.post(
+                "https://api.authentica.sa/api/v1/verify-otp",
+                { phone, otp },
+                {
+                    headers: {
+                        "X-Authorization": process.env.AUTHENTICA_API_KEY,
+                        "Content-Type": "application/json",
+                        "Accept": "application/json",
+                    },
+                }
+            );
+
+            if (response.data.status === true && response.data.message === "OTP verified successfully") {
+                const hashedPassword = await generatehash({ planText: newPassword });
+
+                await Usermodel.updateOne(
+                    { phone },
+                    {
+                        password: hashedPassword,
+                        isConfirmed: true,
+                        changeCredentialTime: Date.now(),
+                    }
+                );
+
+                return successresponse(res, "✅ تم إعادة تعيين كلمة المرور بنجاح عبر الهاتف", 200);
+            } else {
+                return next(new Error("❌ كود التحقق غير صحيح أو منتهي الصلاحية", { cause: 400 }));
+            }
+        } catch (error) {
+            console.error("❌ فشل التحقق من OTP عبر Authentica:", error.response?.data || error.message);
+            return next(new Error("❌ فشل التحقق من OTP عبر الهاتف", { cause: 500 }));
+        }
+    }
+});
+
 
 
 export const signupServiceProvider = asyncHandelr(async (req, res, next) => {
