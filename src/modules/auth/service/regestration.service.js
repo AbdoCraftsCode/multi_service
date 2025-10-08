@@ -5355,5 +5355,21 @@ export const getRideRequestById = async (req, res) => {
     }
 };
 
+export const deleteMyAccount = asyncHandelr(async (req, res, next) => {
+    const userId = req.user._id; // جاي من التوكن
 
+    // 🧩 تحقق أن المستخدم موجود
+    const user = await Usermodel.findById(userId);
+    if (!user) {
+        return next(new Error("❌ المستخدم غير موجود", { cause: 404 }));
+    }
+
+    // ⚙️ حذف المستخدم
+    await Usermodel.findByIdAndDelete(userId);
+
+    // 💬 ممكن كمان تحذف البيانات المرتبطة بالمستخدم هنا (لو فيه Posts أو Orders ...)
+    // await OrderModel.deleteMany({ userId });
+
+    return successresponse(res, "✅ تم حذف الحساب بنجاح", 200);
+});
 

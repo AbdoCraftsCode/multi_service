@@ -260,6 +260,9 @@ routr.post("/getBranches", authentication(), getBranches)
 
 routr.post("/createUserByOwner", authentication(), createUserByOwner)
 routr.get("/getUsersByOwner", authentication(), getUsersByOwner)
+routr.delete("/deleteMyAccount", authentication(), deleteMyAccount)
+
+
 routr.post("/createPropertyBooking", authentication(), createPropertyBooking)
 
 routr.get("/getMainGroupsForUser", authentication(), getMainGroupsForUser)
