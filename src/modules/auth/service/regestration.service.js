@@ -34,7 +34,7 @@ import { OrderModellllll } from "../../../DB/models/customItemSchemaorder.js";
 import { nanoid, customAlphabet } from "nanoid";
 const AUTHENTICA_API_KEY = process.env.AUTHENTICA_API_KEY || "$2y$10$q3BAdOAyWapl3B9YtEVXK.DHmJf/yaOqF4U.MpbBmR8bwjSxm4A6W";
 const AUTHENTICA_OTP_URL = "https://api.authentica.sa/api/v1/send-otp";
-
+import fs from 'fs';
 export async function sendOTP(phone) {
     try {
         const response = await axios.post(
@@ -4736,7 +4736,41 @@ export const getDeliveredOrdersByDriver = asyncHandelr(async (req, res, next) =>
 
 
 
+export const uploadImages = asyncHandelr(async (req, res, next) => {
+    const { title } = req.body;
+    const userId = req.user._id;
 
+    if (!req.files || req.files.length === 0) {
+        return next(new Error("❌ يجب رفع صورة واحدة على الأقل", { cause: 400 }));
+    }
+
+    // ⬆️ رفع كل الصور إلى Cloudinary
+    const uploadedImages = [];
+    for (const file of req.files) {
+        const result = await cloud.uploader.upload(file.path, {
+            resource_type: "image",
+            folder: "uploads/multi",
+        });
+        uploadedImages.push({
+            url: result.secure_url,
+            public_id: result.public_id,
+        });
+        fs.unlinkSync(file.path); // حذف الصورة المحلية بعد الرفع
+    }
+
+    // 💾 حفظ البيانات في قاعدة البيانات
+    const newImages = await ImageModel.create({
+        userId,
+        title,
+        images: uploadedImages,
+    });
+
+    res.status(201).json({
+        success: true,
+        message: "✅ تم رفع الصور بنجاح",
+        data: newImages,
+    });
+});
 
 
 
@@ -5094,6 +5128,7 @@ import SubscriptionPlan from "../../../DB/models/subscriptionPlanSchema.model.js
 import PaidService from "../../../DB/models/paidServiceSchema.js";
 import { RideRequestModel } from "../../../DB/models/rideRequestSchema.model.js";
 import PaidServiceDrivers from "../../../DB/models/PaidServiceDrivers.js";
+import { ImageModel } from "../../../DB/models/imageSchema.model.js";
 
 export const updateSubscription = asyncHandelr(async (req, res, next) => {
     const { userId } = req.params;
@@ -5372,4 +5407,16 @@ export const deleteMyAccount = asyncHandelr(async (req, res, next) => {
 
     return successresponse(res, "✅ تم حذف الحساب بنجاح", 200);
 });
+
+// ✅ جلب كل الصور
+export const getAllImages = asyncHandelr(async (req, res, next) => {
+    const images = await ImageModel.find().populate();
+    res.status(200).json({
+        success: true,
+        count: images.length,
+        data: images,
+    });
+});
+
+// ✅ جلب الصور الخاصة بمستخدم معين
 
