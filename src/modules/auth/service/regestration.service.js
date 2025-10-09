@@ -5409,14 +5409,14 @@ export const deleteMyAccount = asyncHandelr(async (req, res, next) => {
 });
 
 // ✅ جلب كل الصور
-export const getAllImages = asyncHandelr(async (req, res, next) => {
-    const images = await ImageModel.find().populate();
-    res.status(200).json({
-        success: true,
-        count: images.length,
-        data: images,
-    });
-});
+// export const getAllImages = asyncHandelr(async (req, res, next) => {
+//     const images = await ImageModel.find().populate();
+//     res.status(200).json({
+//         success: true,
+//         count: images.length,
+//         data: images,
+//     });
+// });
 
 // ✅ جلب الصور الخاصة بمستخدم معين
 
