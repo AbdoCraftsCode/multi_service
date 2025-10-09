@@ -5129,6 +5129,7 @@ import PaidService from "../../../DB/models/paidServiceSchema.js";
 import { RideRequestModel } from "../../../DB/models/rideRequestSchema.model.js";
 import PaidServiceDrivers from "../../../DB/models/PaidServiceDrivers.js";
 import { ImageModel } from "../../../DB/models/imageSchema.model.js";
+import { ReportModel } from "../../../DB/models/reportSchema.js";
 
 export const updateSubscription = asyncHandelr(async (req, res, next) => {
     const { userId } = req.params;
@@ -5420,3 +5421,18 @@ export const getAllImages = asyncHandelr(async (req, res, next) => {
 
 // ✅ جلب الصور الخاصة بمستخدم معين
 
+export const createReport = asyncHandelr(async (req, res, next) => {
+    const { contact, message, name } = req.body;
+
+    if (!contact || !message) {
+        return next(new Error("❌ برجاء إدخال وسيلة تواصل والرسالة", { cause: 400 }));
+    }
+
+    const report = await ReportModel.create({ contact, message, name });
+    return successresponse(res, "✅ تم إرسال البلاغ بنجاح", 201);
+});
+
+export const getReports = asyncHandelr(async (req, res) => {
+    const reports = await ReportModel.find().sort({ createdAt: -1 });
+    return successresponse(res, "✅ تم جلب جميع البلاغات بنجاح", 200, reports);
+});
