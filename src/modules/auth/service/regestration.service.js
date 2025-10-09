@@ -5436,3 +5436,18 @@ export const getReports = asyncHandelr(async (req, res) => {
     const reports = await ReportModel.find().sort({ createdAt: -1 });
     return successresponse(res, "✅ تم جلب جميع البلاغات بنجاح", 200, reports);
 });
+
+export const getNotificationsByUser = asyncHandelr(async (req, res, next) => {
+    const { userId } = req.params;
+
+    if (!userId) {
+        return next(new Error("❌ يجب إرسال معرف المستخدم userId", { cause: 400 }));
+    }
+
+    // 🔍 جلب الإشعارات الخاصة بالمستخدم فقط
+    const notifications = await NotificationModell.find({ user: userId })
+        .select("title body isRead createdAt")
+        .sort({ createdAt: -1 }); // الأحدث أولاً
+
+    return successresponse(res, "✅ تم جلب الإشعارات بنجاح", 200, notifications);
+});
