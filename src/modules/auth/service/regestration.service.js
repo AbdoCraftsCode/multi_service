@@ -5449,5 +5449,10 @@ export const getNotificationsByUser = asyncHandelr(async (req, res, next) => {
         .select("title body isRead createdAt")
         .sort({ createdAt: -1 }); // الأحدث أولاً
 
-    return successresponse(res, "✅ تم جلب الإشعارات بنجاح", 200, notifications);
+    // ✅ تنسيق الريسبونس بالشكل المطلوب
+    return res.status(200).json({
+        success: true,
+        count: notifications.length,
+        data: notifications
+    });
 });
