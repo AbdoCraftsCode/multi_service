@@ -797,6 +797,17 @@ export const getMyProfile = async (req, res, next) => {
 };
 
 
+
+
+
+
+
+
+
+
+
+
+
 export const getMyCompactProfile = async (req, res, next) => {
     try {
         const userId = req.user._id;

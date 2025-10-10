@@ -514,12 +514,7 @@ export const signupServiceProvider = asyncHandelr(async (req, res, next) => {
             await sendOTP(phone);
             console.log(`📩 OTP تم إرساله إلى الهاتف: ${phone}`);
         } else if (email) {
-    //         Emailevent.emit("confirmemail", { email });
-    //         console.log(`📩 OTP تم إرساله إلى البريد: ${email}`);
-    //     }
-    // } catch (error) {
-    //     console.error("❌ فشل في إرسال OTP:", error.message);
-    //     return next(new Error("فشل في إرسال رمز التحقق", { cause: 500 }));
+ 
     // }
             const otp = customAlphabet("0123456789", 6)();
 
@@ -559,6 +554,24 @@ export const signupServiceProvider = asyncHandelr(async (req, res, next) => {
     }
     return successresponse(res, "تم إنشاء حساب مقدم الخدمة بنجاح، وتم إرسال رمز التحقق", 201);
 });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -5432,6 +5445,10 @@ export const createReport = asyncHandelr(async (req, res, next) => {
     return successresponse(res, "✅ تم إرسال البلاغ بنجاح", 201);
 });
 
+
+
+
+
 export const getReports = asyncHandelr(async (req, res) => {
     const reports = await ReportModel.find().sort({ createdAt: -1 });
     return successresponse(res, "✅ تم جلب جميع البلاغات بنجاح", 200, reports);
@@ -5454,5 +5471,119 @@ export const getNotificationsByUser = asyncHandelr(async (req, res, next) => {
         success: true,
         count: notifications.length,
         data: notifications
+    });
+});
+
+
+
+// 📤 دالة الرفع على Cloudinary
+const uploadToCloud = async (file, folder) => {
+    const isPDF = file.mimetype === "application/pdf";
+
+    const uploaded = await cloud.uploader.upload(file.path, {
+        folder,
+        resource_type: isPDF ? "raw" : "auto",
+    });
+
+    return {
+        secure_url: uploaded.secure_url,
+        public_id: uploaded.public_id,
+    };
+};
+
+// 🧩 تعديل البروفايل
+export const updateMyProfile = asyncHandelr(async (req, res, next) => {
+    const userId = req.user._id;
+
+    const user = await Usermodel.findById(userId);
+    if (!user) {
+        return res.status(404).json({
+            success: false,
+            message: "⚠️ المستخدم غير موجود",
+        });
+    }
+
+    const {
+        fullName,
+        email,
+        phone,
+        totalPoints,
+        modelcar,
+        serviceType,
+    } = req.body;
+
+    const updatedData = {
+        fullName: fullName || user.fullName,
+        email: email || user.email,
+        phone: phone || user.phone,
+        totalPoints: totalPoints || user.totalPoints,
+        modelcar: modelcar || user.modelcar,
+        serviceType: serviceType || user.serviceType,
+    };
+
+    const uploadedFiles = {};
+
+    // ⚙️ إدارة صور العربية (إضافة / حذف)
+    let finalCarImages = Array.isArray(user.carImages) ? [...user.carImages] : [];
+
+    // 🗑️ 1- حذف صور تم تحديدها للحذف
+    if (req.body.removedCarImages) {
+        let removed = [];
+        try {
+            removed = JSON.parse(req.body.removedCarImages);
+        } catch {
+            removed = req.body.removedCarImages;
+        }
+
+        if (Array.isArray(removed)) {
+            for (const imgId of removed) {
+                const img = finalCarImages.find(c => c.public_id === imgId);
+                if (img) {
+                    // حذف الصورة من Cloudinary
+                    await cloud.uploader.destroy(img.public_id);
+                    // حذفها من الـ Array
+                    finalCarImages = finalCarImages.filter(c => c.public_id !== imgId);
+                }
+            }
+        }
+    }
+
+    // 🆕 2- إضافة الصور الجديدة
+    if (req.files?.carImages) {
+        const files = Array.isArray(req.files.carImages)
+            ? req.files.carImages
+            : [req.files.carImages];
+
+        for (const file of files) {
+            const uploaded = await uploadToCloud(file, `users/carImages`);
+            finalCarImages.push(uploaded);
+        }
+    }
+
+    uploadedFiles.carImages = finalCarImages;
+
+    // 🧍‍♂️ صورة البروفايل
+    if (req.files?.profiePicture?.[0]) {
+        uploadedFiles.profiePicture = await uploadToCloud(
+            req.files.profiePicture[0],
+            `users/profilePictures`
+        );
+    } else {
+        uploadedFiles.profiePicture = user.profiePicture;
+    }
+
+    // 💾 تحديث المستخدم
+    const updatedUser = await Usermodel.findByIdAndUpdate(
+        userId,
+        { ...updatedData, ...uploadedFiles },
+        { new: true }
+    ).select(
+        "fullName email phone totalPoints modelcar serviceType carImages profiePicture"
+    );
+
+    return res.status(200).json({
+        success: true,
+        message: "✅ تم تحديث البروفايل بنجاح",
+        data: updatedUser,
     });
 });
