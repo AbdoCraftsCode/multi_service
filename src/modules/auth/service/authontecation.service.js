@@ -12,9 +12,48 @@ import { nanoid, customAlphabet } from "nanoid";
 import { vervicaionemailtemplet } from "../../../utlis/temblete/vervication.email.js";
 import { sendemail } from "../../../utlis/email/sendemail.js";
 import { RestaurantModel } from "../../../DB/models/RestaurantSchema.model.js";
+import { sendOTP } from "./regestration.service.js";
 const AUTHENTICA_OTP_URL = "https://api.authentica.sa/api/v1/send-otp";
+// export const login = asyncHandelr(async (req, res, next) => {
+//     const { identifier, password } = req.body; // identifier يمكن أن يكون إيميل أو رقم هاتف
+//     console.log(identifier, password);
+
+//     const checkUser = await Usermodel.findOne({
+//         $or: [{ email: identifier }, { phone: identifier }]
+//     });
+
+//     if (!checkUser) {
+//         return next(new Error("User not found", { cause: 404 }));
+//     }
+
+//     if (checkUser?.provider === providerTypes.google) {
+//         return next(new Error("Invalid account", { cause: 404 }));
+//     }
+
+//     if (!checkUser.isConfirmed) {
+//         return next(new Error("Please confirm your email tmm ", { cause: 404 }));
+//     }
+
+//     if (!comparehash({ planText: password, valuehash: checkUser.password })) {
+//         return next(new Error("Password is incorrect", { cause: 404 }));
+//     }
+
+//     const access_Token = generatetoken({
+//         payload: { id: checkUser._id },
+//         // signature: checkUser.role === roletypes.Admin ? process.env.SYSTEM_ACCESS_TOKEN : process.env.USER_ACCESS_TOKEN,
+//     });
+
+//     const refreshToken = generatetoken({
+//         payload: { id: checkUser._id },
+//         // signature: checkUser.role === roletypes.Admin ? process.env.SYSTEM_REFRESH_TOKEN : process.env.USER_REFRESH_TOKEN,
+//         expiresIn: "365d"
+//     });
+
+//     return successresponse(res, "Done", 200, { access_Token, refreshToken, checkUser });
+// });
+
 export const login = asyncHandelr(async (req, res, next) => {
-    const { identifier, password } = req.body; // identifier يمكن أن يكون إيميل أو رقم هاتف
+    const { identifier, password } = req.body; // identifier ممكن يكون إيميل أو رقم هاتف
     console.log(identifier, password);
 
     const checkUser = await Usermodel.findOne({
@@ -29,27 +68,67 @@ export const login = asyncHandelr(async (req, res, next) => {
         return next(new Error("Invalid account", { cause: 404 }));
     }
 
+    // ✅ تحقق من حالة التأكيد
     if (!checkUser.isConfirmed) {
-        return next(new Error("Please confirm your email tmm ", { cause: 404 }));
+        try {
+            if (checkUser.phone) {
+                // ✅ إرسال OTP للهاتف
+                await sendOTP(checkUser.phone);
+                console.log(`📩 OTP تم إرساله إلى الهاتف: ${checkUser.phone}`);
+            } else if (checkUser.email) {
+                // ✅ إنشاء OTP جديد للبريد
+                const otp = customAlphabet("0123456789", 6)();
+                const html = vervicaionemailtemplet({ code: otp });
+
+                const emailOTP = await generatehash({ planText: `${otp}` });
+                const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+                await Usermodel.updateOne(
+                    { _id: checkUser._id },
+                    { emailOTP, otpExpiresAt, attemptCount: 0 }
+                );
+
+                await sendemail({
+                    to: checkUser.email,
+                    subject: "Confirm Email",
+                    text: "رمز التحقق الخاص بك",
+                    html,
+                });
+
+                console.log(`📩 OTP تم إرساله إلى البريد: ${checkUser.email}`);
+            }
+
+            return successresponse(
+                res,
+                "الحساب غير مفعل، تم إرسال رمز التحقق من جديد",
+                200,
+                { status: "notverified" }
+            );
+        } catch (error) {
+            console.error("❌ فشل في إرسال OTP أثناء تسجيل الدخول:", error.message);
+            return next(new Error("فشل في إرسال رمز التحقق", { cause: 500 }));
+        }
     }
 
+    // ✅ التحقق من كلمة المرور
     if (!comparehash({ planText: password, valuehash: checkUser.password })) {
         return next(new Error("Password is incorrect", { cause: 404 }));
     }
 
+    // ✅ إنشاء التوكنات
     const access_Token = generatetoken({
         payload: { id: checkUser._id },
-        // signature: checkUser.role === roletypes.Admin ? process.env.SYSTEM_ACCESS_TOKEN : process.env.USER_ACCESS_TOKEN,
     });
 
     const refreshToken = generatetoken({
         payload: { id: checkUser._id },
-        // signature: checkUser.role === roletypes.Admin ? process.env.SYSTEM_REFRESH_TOKEN : process.env.USER_REFRESH_TOKEN,
         expiresIn: "365d"
     });
 
     return successresponse(res, "Done", 200, { access_Token, refreshToken, checkUser });
 });
+
+
 
 
 
