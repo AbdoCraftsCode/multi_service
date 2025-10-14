@@ -52,13 +52,122 @@ const AUTHENTICA_OTP_URL = "https://api.authentica.sa/api/v1/send-otp";
 //     return successresponse(res, "Done", 200, { access_Token, refreshToken, checkUser });
 // });
 
+
+
+
+
+
+
+
+// export const login = asyncHandelr(async (req, res, next) => {
+//     const { identifier, password } = req.body; // identifier ممكن يكون إيميل أو رقم هاتف
+//     console.log(identifier, password);
+
+//     const checkUser = await Usermodel.findOne({
+//         $or: [{ email: identifier }, { phone: identifier }]
+//     });
+
+//     if (!checkUser) {
+//         return next(new Error("User not found", { cause: 404 }));
+//     }
+
+//     if (checkUser?.provider === providerTypes.google) {
+//         return next(new Error("Invalid account", { cause: 404 }));
+//     }
+
+//     // ✅ تحقق من حالة التأكيد
+//     if (!checkUser.isConfirmed) {
+//         try {
+//             if (checkUser.phone) {
+//                 // ✅ إرسال OTP للهاتف
+//                 await sendOTP(checkUser.phone);
+//                 console.log(`📩 OTP تم إرساله إلى الهاتف: ${checkUser.phone}`);
+//             } else if (checkUser.email) {
+//                 // ✅ إنشاء OTP جديد للبريد
+//                 const otp = customAlphabet("0123456789", 6)();
+//                 const html = vervicaionemailtemplet({ code: otp });
+
+//                 const emailOTP = await generatehash({ planText: `${otp}` });
+//                 const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+//                 await Usermodel.updateOne(
+//                     { _id: checkUser._id },
+//                     { emailOTP, otpExpiresAt, attemptCount: 0 }
+//                 );
+
+//                 await sendemail({
+//                     to: checkUser.email,
+//                     subject: "Confirm Email",
+//                     text: "رمز التحقق الخاص بك",
+//                     html,
+//                 });
+
+//                 console.log(`📩 OTP تم إرساله إلى البريد: ${checkUser.email}`);
+//             }
+
+//             return successresponse(
+//                 res,
+//                 "الحساب غير مفعل، تم إرسال رمز التحقق من جديد",
+//                 200,
+//                 { status: "notverified" }
+//             );
+//         } catch (error) {
+//             console.error("❌ فشل في إرسال OTP أثناء تسجيل الدخول:", error.message);
+//             return next(new Error("فشل في إرسال رمز التحقق", { cause: 500 }));
+//         }
+//     }
+
+//     // ✅ التحقق من كلمة المرور
+//     if (!comparehash({ planText: password, valuehash: checkUser.password })) {
+//         return next(new Error("Password is incorrect", { cause: 404 }));
+//     }
+
+//     // ✅ إنشاء التوكنات
+//     const access_Token = generatetoken({
+//         payload: { id: checkUser._id },
+//     });
+
+//     const refreshToken = generatetoken({
+//         payload: { id: checkUser._id },
+//         expiresIn: "365d"
+//     });
+
+//     return successresponse(res, "Done", 200, { access_Token, refreshToken, checkUser });
+// });
+
+
+
+
+
 export const login = asyncHandelr(async (req, res, next) => {
     const { identifier, password } = req.body; // identifier ممكن يكون إيميل أو رقم هاتف
+    const { fedk, fedkdrivers } = req.query; // ✅ الحقلين الجدد من query
     console.log(identifier, password);
 
-    const checkUser = await Usermodel.findOne({
+    // ✅ إعداد الفلتر الأساسي
+    let baseFilter = {
         $or: [{ email: identifier }, { phone: identifier }]
-    });
+    };
+
+    // ✅ لو الحقل fedk موجود → نبحث عن User أو ServiceProvider (Host, Doctor)
+    if (fedk) {
+        baseFilter.$or = [
+            { email: identifier, accountType: "User" },
+            { phone: identifier, accountType: "User" },
+            { email: identifier, accountType: "ServiceProvider", serviceType: { $in: ["Host", "Doctor"] } },
+            { phone: identifier, accountType: "ServiceProvider", serviceType: { $in: ["Host", "Doctor"] } }
+        ];
+    }
+
+    // ✅ لو الحقل fedkdrivers موجود → نبحث عن ServiceProvider (Driver, Delivery)
+    if (fedkdrivers) {
+        baseFilter.$or = [
+            { email: identifier, accountType: "ServiceProvider", serviceType: { $in: ["Driver", "Delivery"] } },
+            { phone: identifier, accountType: "ServiceProvider", serviceType: { $in: ["Driver", "Delivery"] } }
+        ];
+    }
+
+    const checkUser = await Usermodel.findOne(baseFilter);
 
     if (!checkUser) {
         return next(new Error("User not found", { cause: 404 }));
@@ -127,6 +236,9 @@ export const login = asyncHandelr(async (req, res, next) => {
 
     return successresponse(res, "Done", 200, { access_Token, refreshToken, checkUser });
 });
+
+
+
 
 
 
@@ -418,32 +530,156 @@ export const verifyOTP = async (req, res, next) => {
 };
 
 
+// export const confirEachOtp = asyncHandelr(async (req, res, next) => {
+//     const { code, email, phone } = req.body;
+
+//     if (!code || (!email && !phone)) {
+//         return next(new Error("يرجى إدخال الكود ورقم الهاتف أو البريد الإلكتروني", { cause: 400 }));
+//     }
+
+//     // ✅ تحقق عن طريق الهاتف باستخدام AUTHENTICA
+//     if (phone) {
+//         const user = await dbservice.findOne({
+//             model: Usermodel,
+//             isConfirmed: false,
+//             filter: { phone }
+//         });
+
+//         if (!user) {
+//             return next(new Error("رقم الهاتف غير مسجل", { cause: 404 }));
+//         }
+
+//         try {
+//             const response = await axios.post(
+//                 "https://api.authentica.sa/api/v1/verify-otp",
+//                 {
+//                     phone,
+//                     otp: code,
+//                     session_id: undefined
+//                 },
+//                 {
+//                     headers: {
+//                         "X-Authorization": process.env.AUTHENTICA_API_KEY,
+//                         "Content-Type": "application/json",
+//                         "Accept": "application/json"
+//                     }
+//                 }
+//             );
+
+//             console.log("📩 AUTHENTICA response:", response.data);
+
+//             if (response.data.status === true && response.data.message === "OTP verified successfully") {
+//                 await dbservice.updateOne({
+//                     model: Usermodel,
+//                     filter: { phone },
+//                     data: { isConfirmed: true }
+//                 });
+
+//                 const access_Token = generatetoken({ payload: { id: user._id } });
+//                 const refreshToken = generatetoken({ payload: { id: user._id }, expiresIn: "365d" });
+
+//                 return successresponse(res, "✅ تم التحقق من رقم الهاتف بنجاح", 200, {
+//                     access_Token,
+//                     refreshToken,
+//                     user
+//                 });
+//             } else {
+//                 return next(new Error("❌ كود التحقق غير صحيح", { cause: 400 }));
+//             }
+
+//         } catch (error) {
+//             console.error("❌ AUTHENTICA Error:", error.response?.data || error.message);
+//             return next(new Error("❌ فشل التحقق من OTP عبر الهاتف", { cause: 500 }));
+//         }
+//     }
+
+//     // ✅ تحقق عن طريق البريد الإلكتروني (محلي)
+//     if (email) {
+//         const user = await dbservice.findOne({ model: Usermodel, isConfirmed: false, filter: { email } });
+
+//         if (!user) return next(new Error("البريد الإلكتروني غير مسجل", { cause: 404 }));
+
+//         if (user.isConfirmed) return next(new Error("البريد الإلكتروني مؤكد بالفعل", { cause: 400 }));
+
+//         if (Date.now() > new Date(user.otpExpiresAt).getTime()) {
+//             return next(new Error("انتهت صلاحية الكود", { cause: 400 }));
+//         }
+
+//         const isValidOTP = comparehash({ planText: `${code}`, valuehash: user.emailOTP });
+//         if (!isValidOTP) {
+//             const attempts = (user.attemptCount || 0) + 1;
+
+//             if (attempts >= 5) {
+//                 await Usermodel.updateOne({ email }, {
+//                     blockUntil: new Date(Date.now() + 2 * 60 * 1000),
+//                     attemptCount: 0
+//                 });
+//                 return next(new Error("تم حظرك مؤقتًا بعد محاولات خاطئة كثيرة", { cause: 429 }));
+//             }
+
+//             await Usermodel.updateOne({ email }, { attemptCount: attempts });
+//             return next(new Error("كود التحقق غير صحيح", { cause: 400 }));
+//         }
+
+//         await Usermodel.updateOne({ email }, {
+//             isConfirmed: true,
+//             $unset: { emailOTP: 0, otpExpiresAt: 0, attemptCount: 0, blockUntil: 0 }
+//         });
+
+//         const access_Token = generatetoken({ payload: { id: user._id } });
+//         const refreshToken = generatetoken({ payload: { id: user._id }, expiresIn: "365d" });
+
+//         return successresponse(res, "✅ تم تأكيد البريد الإلكتروني بنجاح", 200, {
+//             access_Token,
+//             refreshToken,
+//             user
+//         });
+//     }
+// });
+
+
 export const confirEachOtp = asyncHandelr(async (req, res, next) => {
     const { code, email, phone } = req.body;
+    const { fedk, fedkdrivers } = req.query;
 
     if (!code || (!email && !phone)) {
         return next(new Error("يرجى إدخال الكود ورقم الهاتف أو البريد الإلكتروني", { cause: 400 }));
     }
 
-    // ✅ تحقق عن طريق الهاتف باستخدام AUTHENTICA
+    let baseFilter = {};
+    if (email) baseFilter.email = email;
+    if (phone) baseFilter.phone = phone;
+
+    if (fedk) {
+        baseFilter.$or = [
+            { accountType: "User" },
+            { accountType: "ServiceProvider", serviceType: { $in: ["Host", "Doctor"] } }
+        ];
+    }
+
+    if (fedkdrivers) {
+        baseFilter.$or = [
+            { accountType: "ServiceProvider", serviceType: { $in: ["Driver", "Delivery"] } }
+        ];
+    }
+
+    // ✅ تحقق عن طريق الهاتف
     if (phone) {
         const user = await dbservice.findOne({
             model: Usermodel,
-            filter: { phone }
+            filter: baseFilter
         });
 
-        if (!user) {
-            return next(new Error("رقم الهاتف غير مسجل", { cause: 404 }));
+        if (!user) return next(new Error("رقم الهاتف غير مسجل", { cause: 404 }));
+
+        if (user.isConfirmed) {
+            return successresponse(res, "✅ رقم الهاتف تم تأكيده مسبقًا", 200, { user });
         }
 
         try {
             const response = await axios.post(
                 "https://api.authentica.sa/api/v1/verify-otp",
-                {
-                    phone,
-                    otp: code,
-                    session_id: undefined
-                },
+                { phone, otp: code },
                 {
                     headers: {
                         "X-Authorization": process.env.AUTHENTICA_API_KEY,
@@ -458,7 +694,7 @@ export const confirEachOtp = asyncHandelr(async (req, res, next) => {
             if (response.data.status === true && response.data.message === "OTP verified successfully") {
                 await dbservice.updateOne({
                     model: Usermodel,
-                    filter: { phone },
+                    filter: { _id: user._id },
                     data: { isConfirmed: true }
                 });
 
@@ -473,20 +709,24 @@ export const confirEachOtp = asyncHandelr(async (req, res, next) => {
             } else {
                 return next(new Error("❌ كود التحقق غير صحيح", { cause: 400 }));
             }
-
         } catch (error) {
             console.error("❌ AUTHENTICA Error:", error.response?.data || error.message);
             return next(new Error("❌ فشل التحقق من OTP عبر الهاتف", { cause: 500 }));
         }
     }
 
-    // ✅ تحقق عن طريق البريد الإلكتروني (محلي)
+    // ✅ تحقق عن طريق البريد الإلكتروني
     if (email) {
-        const user = await dbservice.findOne({ model: Usermodel, filter: { email } });
+        const user = await dbservice.findOne({
+            model: Usermodel,
+            filter: baseFilter
+        });
 
         if (!user) return next(new Error("البريد الإلكتروني غير مسجل", { cause: 404 }));
 
-        if (user.isConfirmed) return next(new Error("البريد الإلكتروني مؤكد بالفعل", { cause: 400 }));
+        if (user.isConfirmed) {
+            return successresponse(res, "✅ البريد الإلكتروني تم تأكيده مسبقًا", 200, { user });
+        }
 
         if (Date.now() > new Date(user.otpExpiresAt).getTime()) {
             return next(new Error("انتهت صلاحية الكود", { cause: 400 }));
@@ -495,7 +735,6 @@ export const confirEachOtp = asyncHandelr(async (req, res, next) => {
         const isValidOTP = comparehash({ planText: `${code}`, valuehash: user.emailOTP });
         if (!isValidOTP) {
             const attempts = (user.attemptCount || 0) + 1;
-
             if (attempts >= 5) {
                 await Usermodel.updateOne({ email }, {
                     blockUntil: new Date(Date.now() + 2 * 60 * 1000),
@@ -508,7 +747,7 @@ export const confirEachOtp = asyncHandelr(async (req, res, next) => {
             return next(new Error("كود التحقق غير صحيح", { cause: 400 }));
         }
 
-        await Usermodel.updateOne({ email }, {
+        await Usermodel.updateOne({ _id: user._id }, {
             isConfirmed: true,
             $unset: { emailOTP: 0, otpExpiresAt: 0, attemptCount: 0, blockUntil: 0 }
         });
@@ -523,6 +762,12 @@ export const confirEachOtp = asyncHandelr(async (req, res, next) => {
         });
     }
 });
+
+
+
+
+
+
 
 
 
