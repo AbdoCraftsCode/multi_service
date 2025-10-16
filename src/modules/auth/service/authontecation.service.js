@@ -13,6 +13,7 @@ import { vervicaionemailtemplet } from "../../../utlis/temblete/vervication.emai
 import { sendemail } from "../../../utlis/email/sendemail.js";
 import { RestaurantModel } from "../../../DB/models/RestaurantSchema.model.js";
 import { sendOTP } from "./regestration.service.js";
+import AppSettingsSchema from "../../../DB/models/AppSettingsSchema.js";
 const AUTHENTICA_OTP_URL = "https://api.authentica.sa/api/v1/send-otp";
 // export const login = asyncHandelr(async (req, res, next) => {
 //     const { identifier, password } = req.body; // identifier يمكن أن يكون إيميل أو رقم هاتف
@@ -1189,3 +1190,25 @@ export const getMyCompactProfile = async (req, res, next) => {
 };
 
 
+
+
+export const createOrUpdateSettings = asyncHandelr(async (req, res, next) => {
+    const { whatsappNumber, privacyPolicy } = req.body;
+
+    let settings = await AppSettingsSchema.findOne();
+    if (!settings) {
+        settings = await AppSettingsSchema.create({ whatsappNumber, privacyPolicy });
+    } else {
+        settings.whatsappNumber = whatsappNumber || settings.whatsappNumber;
+        settings.privacyPolicy = privacyPolicy || settings.privacyPolicy;
+        await settings.save();
+    }
+
+    return successresponse(res, "✅ تم حفظ الإعدادات بنجاح", 200, { settings });
+});
+
+
+export const getSettings = asyncHandelr(async (req, res, next) => {
+    const settings = await AppSettingsSchema.findOne();
+    return successresponse(res, "✅ تم جلب الإعدادات بنجاح", 200, { settings });
+});
