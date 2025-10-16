@@ -140,6 +140,108 @@ const AUTHENTICA_OTP_URL = "https://api.authentica.sa/api/v1/send-otp";
 
 
 
+// export const login = asyncHandelr(async (req, res, next) => {
+//     const { identifier, password } = req.body; // identifier ممكن يكون إيميل أو رقم هاتف
+//     const { fedk, fedkdrivers } = req.query; // ✅ الحقلين الجدد من query
+//     console.log(identifier, password);
+
+//     // ✅ إعداد الفلتر الأساسي
+//     let baseFilter = {
+//         $or: [{ email: identifier }, { phone: identifier }]
+//     };
+
+//     // ✅ لو الحقل fedk موجود → نبحث عن User أو ServiceProvider (Host, Doctor)
+//     if (fedk) {
+//         baseFilter.$or = [
+//             { email: identifier, accountType: "User" },
+//             { phone: identifier, accountType: "User" },
+//             { email: identifier, accountType: "ServiceProvider", serviceType: { $in: ["Host", "Doctor"] } },
+//             { phone: identifier, accountType: "ServiceProvider", serviceType: { $in: ["Host", "Doctor"] } }
+//         ];
+//     }
+
+//     // ✅ لو الحقل fedkdrivers موجود → نبحث عن ServiceProvider (Driver, Delivery)
+//     if (fedkdrivers) {
+//         baseFilter.$or = [
+//             { email: identifier, accountType: "ServiceProvider", serviceType: { $in: ["Driver", "Delivery"] } },
+//             { phone: identifier, accountType: "ServiceProvider", serviceType: { $in: ["Driver", "Delivery"] } }
+//         ];
+//     }
+
+//     const checkUser = await Usermodel.findOne(baseFilter);
+
+//     if (!checkUser) {
+//         return next(new Error("User not found", { cause: 404 }));
+//     }
+
+//     if (checkUser?.provider === providerTypes.google) {
+//         return next(new Error("Invalid account", { cause: 404 }));
+//     }
+
+//     // ✅ تحقق من حالة التأكيد
+//     if (!checkUser.isConfirmed) {
+//         try {
+//             if (checkUser.phone) {
+//                 // ✅ إرسال OTP للهاتف
+//                 await sendOTP(checkUser.phone);
+//                 console.log(`📩 OTP تم إرساله إلى الهاتف: ${checkUser.phone}`);
+//             } else if (checkUser.email) {
+//                 // ✅ إنشاء OTP جديد للبريد
+//                 const otp = customAlphabet("0123456789", 6)();
+//                 const html = vervicaionemailtemplet({ code: otp });
+
+//                 const emailOTP = await generatehash({ planText: `${otp}` });
+//                 const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+//                 await Usermodel.updateOne(
+//                     { _id: checkUser._id },
+//                     { emailOTP, otpExpiresAt, attemptCount: 0 }
+//                 );
+
+//                 await sendemail({
+//                     to: checkUser.email,
+//                     subject: "Confirm Email",
+//                     text: "رمز التحقق الخاص بك",
+//                     html,
+//                 });
+
+//                 console.log(`📩 OTP تم إرساله إلى البريد: ${checkUser.email}`);
+//             }
+
+//             return successresponse(
+//                 res,
+//                 "الحساب غير مفعل، تم إرسال رمز التحقق من جديد",
+//                 200,
+//                 { status: "notverified" }
+//             );
+//         } catch (error) {
+//             console.error("❌ فشل في إرسال OTP أثناء تسجيل الدخول:", error.message);
+//             return next(new Error("فشل في إرسال رمز التحقق", { cause: 500 }));
+//         }
+//     }
+
+//     // ✅ التحقق من كلمة المرور
+//     if (!comparehash({ planText: password, valuehash: checkUser.password })) {
+//         return next(new Error("Password is incorrect", { cause: 404 }));
+//     }
+
+//     // ✅ إنشاء التوكنات
+//     const access_Token = generatetoken({
+//         payload: { id: checkUser._id },
+//     });
+
+//     const refreshToken = generatetoken({
+//         payload: { id: checkUser._id },
+//         expiresIn: "365d"
+//     });
+
+//     return successresponse(res, "Done", 200, { access_Token, refreshToken, checkUser });
+// });
+
+
+
+
+
 export const login = asyncHandelr(async (req, res, next) => {
     const { identifier, password } = req.body; // identifier ممكن يكون إيميل أو رقم هاتف
     const { fedk, fedkdrivers } = req.query; // ✅ الحقلين الجدد من query
@@ -172,6 +274,28 @@ export const login = asyncHandelr(async (req, res, next) => {
 
     if (!checkUser) {
         return next(new Error("User not found", { cause: 404 }));
+    }
+
+    // ✅ لو المستخدم staff أو manager → تسجيل مباشر بدون تحقق OTP أو شروط إضافية
+    if (checkUser.accountType === "staff" || checkUser.accountType === "manager") {
+        if (!comparehash({ planText: password, valuehash: checkUser.password })) {
+            return next(new Error("Password is incorrect", { cause: 404 }));
+        }
+
+        const access_Token = generatetoken({
+            payload: { id: checkUser._id },
+        });
+
+        const refreshToken = generatetoken({
+            payload: { id: checkUser._id },
+            expiresIn: "365d"
+        });
+
+        return successresponse(res, "✅ Staff or Manager logged in successfully", 200, {
+            access_Token,
+            refreshToken,
+            checkUser
+        });
     }
 
     if (checkUser?.provider === providerTypes.google) {
@@ -237,8 +361,6 @@ export const login = asyncHandelr(async (req, res, next) => {
 
     return successresponse(res, "Done", 200, { access_Token, refreshToken, checkUser });
 });
-
-
 
 
 
@@ -456,79 +578,113 @@ export const resendOTP = asyncHandelr(async (req, res, next) => {
 
 // $2y$10$ZHEfQKrayDl6V3JwOwnyreovYvhG.zTMW6mIedMEOjjoTr2R367Zy
 
-const AUTHENTICA_API_KEY = process.env.AUTHENTICA_API_KEY || "$2y$10$q3BAdOAyWapl3B9YtEVXK.DHmJf/yaOqF4U.MpbBmR8bwjSxm4A6W";
-const AUTHENTICA_VERIFY_URL = "https://api.authentica.sa/api/v1/verify-otp";
+// const AUTHENTICA_API_KEY = process.env.AUTHENTICA_API_KEY || "$2y$10$q3BAdOAyWapl3B9YtEVXK.DHmJf/yaOqF4U.MpbBmR8bwjSxm4A6W";
+// const AUTHENTICA_VERIFY_URL = "https://api.authentica.sa/api/v1/verify-otp";
 
-export const verifyOTP = async (req, res, next) => {
-    const { phone, otp } = req.body;
+// export const verifyOTP = async (req, res, next) => {
+//     const { phone, otp } = req.body;
 
-    if (!phone || !otp) {
-        return res.status(400).json({ success: false, error: "❌ يجب إدخال رقم الهاتف و OTP" });
-    }
+//     if (!phone || !otp) {
+//         return res.status(400).json({ success: false, error: "❌ يجب إدخال رقم الهاتف و OTP" });
+//     }
 
+//     try {
+//         const user = await dbservice.findOne({
+//             model: Usermodel,
+//             filter: { mobileNumber: phone }
+//         });
+
+//         if (!user) {
+//             return next(new Error("❌ رقم الهاتف غير مسجل", { cause: 404 }));
+//         }
+
+//         console.log("📨 جاري التحقق من OTP بالبيانات:", { phone, otp, session_id: undefined });
+
+//         const response = await axios.post(
+//             AUTHENTICA_VERIFY_URL,
+//             {
+//                 phone,
+//                 otp,
+//                 session_id: undefined  // مؤقتًا نرسله undefined حتى نعرف من الرد هل هو مطلوب
+//             },
+//             {
+//                 headers: {
+//                     "X-Authorization": AUTHENTICA_API_KEY,
+//                     "Content-Type": "application/json",
+//                     "Accept": "application/json"
+//                 },
+//             }
+//         );
+
+//         console.log("📩 استجابة API من AUTHENTICA:", JSON.stringify(response.data, null, 2));
+
+//         if (response.data.status === true && response.data.message === "OTP verified successfully") {
+//             await dbservice.updateOne({
+//                 model: Usermodel,
+//                 filter: { mobileNumber: phone },
+//                 data: { isConfirmed: true }
+//             });
+
+//             const access_Token = generatetoken({ payload: { id: user._id } });
+//             const refreshToken = generatetoken({ payload: { id: user._id }, expiresIn: "365d" });
+
+//             return res.json({
+//                 success: true,
+//                 message: "✅ OTP صحيح، تم التحقق بنجاح!",
+//                 access_Token,
+//                 refreshToken
+//             });
+//         } else {
+//             return res.status(400).json({
+//                 success: false,
+//                 message: "❌ OTP غير صحيح",
+//                 details: response.data
+//             });
+//         }
+//     } catch (error) {
+//         console.error("❌ فشل التحقق من OTP:", error.response?.data || error.message);
+
+//         return res.status(500).json({
+//             success: false,
+//             error: "❌ فشل التحقق من OTP",
+//             details: error.response?.data || error.message
+//         });
+//     }
+// };
+
+
+
+const AUTHENTICA_API_KEY = "ad5348edf3msh15d5daec987b64cp183e9fjsne1092498134c";
+const AUTHENTICA_BASE_URL = "https://authentica1.p.rapidapi.com/api/v2";
+export async function verifyOTP(phone, otp) {
     try {
-        const user = await dbservice.findOne({
-            model: Usermodel,
-            filter: { mobileNumber: phone }
-        });
-
-        if (!user) {
-            return next(new Error("❌ رقم الهاتف غير مسجل", { cause: 404 }));
-        }
-
-        console.log("📨 جاري التحقق من OTP بالبيانات:", { phone, otp, session_id: undefined });
-
         const response = await axios.post(
-            AUTHENTICA_VERIFY_URL,
+            `${AUTHENTICA_BASE_URL}/verify-otp`,
             {
-                phone,
-                otp,
-                session_id: undefined  // مؤقتًا نرسله undefined حتى نعرف من الرد هل هو مطلوب
+                phone: phone,
+                otp: otp,
             },
             {
                 headers: {
-                    "X-Authorization": AUTHENTICA_API_KEY,
+                    "x-rapidapi-key": AUTHENTICA_API_KEY,
+                    "x-rapidapi-host": "authentica1.p.rapidapi.com",
                     "Content-Type": "application/json",
-                    "Accept": "application/json"
+                    Accept: "application/json",
                 },
             }
         );
 
-        console.log("📩 استجابة API من AUTHENTICA:", JSON.stringify(response.data, null, 2));
-
-        if (response.data.status === true && response.data.message === "OTP verified successfully") {
-            await dbservice.updateOne({
-                model: Usermodel,
-                filter: { mobileNumber: phone },
-                data: { isConfirmed: true }
-            });
-
-            const access_Token = generatetoken({ payload: { id: user._id } });
-            const refreshToken = generatetoken({ payload: { id: user._id }, expiresIn: "365d" });
-
-            return res.json({
-                success: true,
-                message: "✅ OTP صحيح، تم التحقق بنجاح!",
-                access_Token,
-                refreshToken
-            });
-        } else {
-            return res.status(400).json({
-                success: false,
-                message: "❌ OTP غير صحيح",
-                details: response.data
-            });
-        }
+        console.log("✅ OTP Verified:", response.data);
+        return response.data;
     } catch (error) {
-        console.error("❌ فشل التحقق من OTP:", error.response?.data || error.message);
-
-        return res.status(500).json({
-            success: false,
-            error: "❌ فشل التحقق من OTP",
-            details: error.response?.data || error.message
-        });
+        console.error(
+            "❌ OTP Verification Failed:",
+            error.response?.data || error.message
+        );
+        throw error;
     }
-};
+}
+
 
 
 // export const confirEachOtp = asyncHandelr(async (req, res, next) => {
@@ -679,37 +835,42 @@ export const confirEachOtp = asyncHandelr(async (req, res, next) => {
 
         try {
             const response = await axios.post(
-                "https://api.authentica.sa/api/v1/verify-otp",
+                "https://authentica1.p.rapidapi.com/api/v2/verify-otp",
                 { phone, otp: code },
                 {
                     headers: {
-                        "X-Authorization": process.env.AUTHENTICA_API_KEY,
+                        "x-rapidapi-key": process.env.AUTHENTICA_API_KEY,
+                        "x-rapidapi-host": "authentica1.p.rapidapi.com",
                         "Content-Type": "application/json",
-                        "Accept": "application/json"
-                    }
+                        "Accept": "application/json",
+                    },
                 }
             );
 
             console.log("📩 AUTHENTICA response:", response.data);
 
-            if (response.data.status === true && response.data.message === "OTP verified successfully") {
+           if (response.data?.status === true || response.data?.message === "OTP verified successfully") {
                 await dbservice.updateOne({
                     model: Usermodel,
                     filter: { _id: user._id },
-                    data: { isConfirmed: true }
+                    data: { isConfirmed: true },
                 });
 
                 const access_Token = generatetoken({ payload: { id: user._id } });
-                const refreshToken = generatetoken({ payload: { id: user._id }, expiresIn: "365d" });
+                const refreshToken = generatetoken({
+                    payload: { id: user._id },
+                    expiresIn: "365d",
+                });
 
                 return successresponse(res, "✅ تم التحقق من رقم الهاتف بنجاح", 200, {
                     access_Token,
                     refreshToken,
-                    user
+                    user,
                 });
             } else {
                 return next(new Error("❌ كود التحقق غير صحيح", { cause: 400 }));
             }
+
         } catch (error) {
             console.error("❌ AUTHENTICA Error:", error.response?.data || error.message);
             return next(new Error("❌ فشل التحقق من OTP عبر الهاتف", { cause: 500 }));

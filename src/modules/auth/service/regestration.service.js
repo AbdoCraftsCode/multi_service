@@ -32,39 +32,45 @@ import rideSchema from "../../../DB/models/rideSchema.js";
 import { ProductModelllll, SectionModel, SupermarketModel } from "../../../DB/models/supermarket.js";
 import { OrderModellllll } from "../../../DB/models/customItemSchemaorder.js";
 import { nanoid, customAlphabet } from "nanoid";
-const AUTHENTICA_API_KEY = process.env.AUTHENTICA_API_KEY || "$2y$10$q3BAdOAyWapl3B9YtEVXK.DHmJf/yaOqF4U.MpbBmR8bwjSxm4A6W";
-const AUTHENTICA_OTP_URL = "https://api.authentica.sa/api/v1/send-otp";
+// const AUTHENTICA_API_KEY = process.env.AUTHENTICA_API_KEY || "$2y$10$q3BAdOAyWapl3B9YtEVXK.DHmJf/yaOqF4U.MpbBmR8bwjSxm4A6W";
+// const AUTHENTICA_OTP_URL = "https://api.authentica.sa/api/v1/send-otp";
 import fs from 'fs';
-export async function sendOTP(phone) {
+
+
+const AUTHENTICA_API_KEY = "ad5348edf3msh15d5daec987b64cp183e9fjsne1092498134c";
+const AUTHENTICA_BASE_URL = "https://authentica1.p.rapidapi.com/api/v2";
+
+export async function sendOTP(phone, method = "sms") {
     try {
         const response = await axios.post(
-            AUTHENTICA_OTP_URL,
+            `${AUTHENTICA_BASE_URL}/send-otp`,
             {
-                phone: phone,
-                method: "whatsapp",  // or "sms"
-                number_of_digits: 6,
-                otp_format: "numeric",
-                is_fallback_on: 0
+                method: method, // sms | whatsapp | email
+                phone: phone,   // must include + and country code e.g. +2010xxxxxxx
             },
             {
                 headers: {
-                    "X-Authorization": AUTHENTICA_API_KEY,
+                    "x-rapidapi-key": AUTHENTICA_API_KEY,
+                    "x-rapidapi-host": "authentica1.p.rapidapi.com",
                     "Content-Type": "application/json",
-                    "Accept": "application/json"
+                    Accept: "application/json",
                 },
             }
         );
 
-        console.log("✅ رد إرسال OTP:", response.data);
-        console.log("📩 رد كامل من Authentica:", JSON.stringify(response.data, null, 2));
-        console.log("🆔 session_id:", response.data?.data?.session_id);
+        console.log("✅ OTP Sent Successfully:", response.data);
+        return response.data;
     } catch (error) {
-        console.error("❌ فشل في إرسال OTP:", error.response?.data || error.message);
+        console.error(
+            "❌ Failed to Send OTP:",
+            error.response?.data || error.message
+        );
+        throw error;
     }
 }
 
 
-
+// await sendOTP("+201031697219", "sms"); 
 
 // export const signup = asyncHandelr(async (req, res, next) => {
 //     const { fullName, password, email, phone } = req.body;
