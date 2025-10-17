@@ -12,8 +12,9 @@ import { nanoid, customAlphabet } from "nanoid";
 import { vervicaionemailtemplet } from "../../../utlis/temblete/vervication.email.js";
 import { sendemail } from "../../../utlis/email/sendemail.js";
 import { RestaurantModel } from "../../../DB/models/RestaurantSchema.model.js";
-import { sendOTP } from "./regestration.service.js";
+// import { sendOTP } from "./regestration.service.js";
 import AppSettingsSchema from "../../../DB/models/AppSettingsSchema.js";
+import { sendOTP } from "./regestration.service.js";
 const AUTHENTICA_OTP_URL = "https://api.authentica.sa/api/v1/send-otp";
 // export const login = asyncHandelr(async (req, res, next) => {
 //     const { identifier, password } = req.body; // identifier يمكن أن يكون إيميل أو رقم هاتف
@@ -237,6 +238,7 @@ const AUTHENTICA_OTP_URL = "https://api.authentica.sa/api/v1/send-otp";
 
 //     return successresponse(res, "Done", 200, { access_Token, refreshToken, checkUser });
 // });
+
 
 
 

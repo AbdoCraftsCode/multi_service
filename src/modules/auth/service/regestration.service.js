@@ -397,29 +397,15 @@ export const forgetPassword = asyncHandelr(async (req, res, next) => {
 
     if (phone) {
         try {
-            const response = await axios.post(
-                AUTHENTICA_OTP_URL,
-                {
-                    phone,
-                    method: "whatsapp",
-                    number_of_digits: 6,
-                    otp_format: "numeric",
-                    is_fallback_on: 0
-                },
-                {
-                    headers: {
-                        "X-Authorization": AUTHENTICA_API_KEY,
-                        "Content-Type": "application/json",
-                        "Accept": "application/json"
-                    },
-                }
-            );
+            const response = await sendOTP(phone, "whatsapp"); // ✅ نستخدم الدالة الجاهزة
 
-            console.log("✅ OTP تم إرساله بنجاح:", response.data);
+            console.log("✅ OTP تم إرساله بنجاح:", response);
+
             return res.json({
                 success: true,
                 message: "✅ تم إرسال كود التحقق إلى رقم الهاتف",
-                user, // 👈 إرجاع بيانات المستخدم كاملة هنا
+                user,
+                otpInfo: response // 👈 لعرض بيانات الإرسال لو حبيت
             });
         } catch (error) {
             console.error("❌ فشل في إرسال OTP للهاتف:", error.response?.data || error.message);
@@ -864,22 +850,12 @@ export const resetPassword = asyncHandelr(async (req, res, next) => {
     // ✅ حالة الهاتف (مع فلترة دقيقة حسب نوع الحساب)
     if (phone) {
         try {
-            const response = await axios.post(
-                "https://api.authentica.sa/api/v1/verify-otp",
-                { phone, otp },
-                {
-                    headers: {
-                        "X-Authorization": process.env.AUTHENTICA_API_KEY,
-                        "Content-Type": "application/json",
-                        "Accept": "application/json",
-                    },
-                }
-            );
+            // ✅ التحقق من OTP عبر RapidAPI (Authentica)
+            const response = await verifyOTP(phone, otp);
 
-            if (response.data.status === true && response.data.message === "OTP verified successfully") {
+            if (response?.status === true || response?.message?.includes("verified")) {
                 const hashedPassword = await generatehash({ planText: newPassword });
 
-                // ✅ نفلتر بدقة لتجنب التغيير التلقائي لنوع الحساب
                 const filter = { phone, accountType };
                 if (accountType === "ServiceProvider" && serviceType) {
                     filter.serviceType = serviceType;
@@ -904,6 +880,8 @@ export const resetPassword = asyncHandelr(async (req, res, next) => {
         }
     }
 });
+    
+
 
 
 
@@ -954,28 +932,53 @@ export const signupServiceProvider = asyncHandelr(async (req, res, next) => {
     });
 
     if (checkuser) {
-        // 👇 لو المستخدم الحالي نوعه User → يسمح بالتسجيل كـ ServiceProvider
+        // ✅ لو المستخدم الحالي نوعه User → ممكن يسجل كمقدم خدمة
         if (checkuser.accountType === "User") {
             console.log("✅ المستخدم موجود كـ User، يمكنه التسجيل كمقدم خدمة.");
+
+            // ✅ يسمح له فقط بالتسجيل كـ Driver أو Delivery
+            if (["Driver", "Delivery"].includes(serviceType)) {
+                console.log(`🚗 المستخدم User يسجل الآن كمقدم خدمة ${serviceType}، مسموح بالتسجيل.`);
+            } else {
+                return next(
+                    new Error(`❌ لا يمكنك التسجيل كـ ${serviceType} باستخدام حساب User. فقط Driver أو Delivery مسموحين.`, { cause: 400 })
+                );
+            }
         }
 
-        // ✅ لو المستخدم User وعايز يسجل كـ Driver أو Delivery → مسموح
-        if (
-            checkuser.accountType === "User" &&
-            ['Driver', 'Delivery'].includes(serviceType)
-        ) {
-            console.log("🚗 المستخدم User يسجل الآن كمقدم خدمة Driver أو Delivery، مسموح بالتسجيل.");
-        }
-
-        // 👇 لو المستخدم ServiceProvider بنفس نوع الخدمة → يمنع التسجيل
+        // ❌ لو المستخدم مقدم خدمة بالفعل بنفس النوع → مرفوض
         else if (checkuser.accountType === "ServiceProvider" && checkuser.serviceType === serviceType) {
             return next(new Error(`أنت مسجل بالفعل كمقدم خدمة بنفس النوع (${serviceType})`, { cause: 400 }));
         }
-        // 👇 لو المستخدم ServiceProvider لكن بنوع خدمة مختلف → يسمح
+
+        // ❌ لو كان مقدم خدمة Driver لا يسجل كـ Delivery والعكس
+        else if (
+            checkuser.accountType === "ServiceProvider" &&
+            (
+                (checkuser.serviceType === "Driver" && serviceType === "Delivery") ||
+                (checkuser.serviceType === "Delivery" && serviceType === "Driver")
+            )
+        ) {
+            return next(new Error("❌ لا يمكنك التسجيل كـ Driver و Delivery في نفس الوقت.", { cause: 400 }));
+        }
+
+        // ❌ لو كان مقدم خدمة Host لا يسجل كـ Doctor والعكس
+        else if (
+            checkuser.accountType === "ServiceProvider" &&
+            (
+                (checkuser.serviceType === "Host" && serviceType === "Doctor") ||
+                (checkuser.serviceType === "Doctor" && serviceType === "Host")
+            )
+        ) {
+            return next(new Error("❌ لا يمكنك التسجيل كـ Host و Doctor في نفس الوقت.", { cause: 400 }));
+        }
+
+        // ✅ غير ذلك، مسموح له يسجل كخدمة مختلفة
         else {
-            console.log("✅ المستخدم مقدم خدمة ولكن بنوع خدمة مختلف، يسمح بالتسجيل.");
+            console.log("✅ المستخدم مقدم خدمة بنوع مختلف، يسمح بالتسجيل.");
         }
     }
+
 
     // ✅ تشفير كلمة المرور
     const hashpassword = await generatehash({ planText: password });
@@ -5676,6 +5679,7 @@ import { RideRequestModel } from "../../../DB/models/rideRequestSchema.model.js"
 import PaidServiceDrivers from "../../../DB/models/PaidServiceDrivers.js";
 import { ImageModel } from "../../../DB/models/imageSchema.model.js";
 import { ReportModel } from "../../../DB/models/reportSchema.js";
+import { verifyOTP } from "./authontecation.service.js";
 
 export const updateSubscription = asyncHandelr(async (req, res, next) => {
     const { userId } = req.params;
