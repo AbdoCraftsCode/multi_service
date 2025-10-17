@@ -956,6 +956,15 @@ export const signupServiceProvider = asyncHandelr(async (req, res, next) => {
         if (checkuser.accountType === "User") {
             console.log("✅ المستخدم موجود كـ User، يمكنه التسجيل كمقدم خدمة.");
         }
+
+        // ✅ لو المستخدم User وعايز يسجل كـ Driver أو Delivery → مسموح
+        if (
+            checkuser.accountType === "User" &&
+            ['Driver', 'Delivery'].includes(serviceType)
+        ) {
+            console.log("🚗 المستخدم User يسجل الآن كمقدم خدمة Driver أو Delivery، مسموح بالتسجيل.");
+        }
+
         // 👇 لو المستخدم ServiceProvider بنفس نوع الخدمة → يمنع التسجيل
         else if (checkuser.accountType === "ServiceProvider" && checkuser.serviceType === serviceType) {
             return next(new Error(`أنت مسجل بالفعل كمقدم خدمة بنفس النوع (${serviceType})`, { cause: 400 }));
