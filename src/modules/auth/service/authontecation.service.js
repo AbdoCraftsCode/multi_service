@@ -311,7 +311,7 @@ export const login = asyncHandelr(async (req, res, next) => {
                 console.log(`📩 OTP تم إرساله إلى الهاتف: ${checkUser.phone}`);
             } else if (checkUser.email) {
                 // ✅ إنشاء OTP جديد للبريد
-                const otp = customAlphabet("0123456789", 6)();
+                const otp = customAlphabet("0123456789", 4)();
                 const html = vervicaionemailtemplet({ code: otp });
 
                 const emailOTP = await generatehash({ planText: `${otp}` });

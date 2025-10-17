@@ -46,7 +46,9 @@ export async function sendOTP(phone, method = "whatsapp") {
             `${AUTHENTICA_BASE_URL}/send-otp`,
             {
                 method: method, // sms | whatsapp | email
-                phone: phone,   // must include + and country code e.g. +2010xxxxxxx
+                phone: phone,
+              
+                // must include + and country code e.g. +2010xxxxxxx
             },
             {
                 headers: {
@@ -215,7 +217,7 @@ export const signup = asyncHandelr(async (req, res, next) => {
             console.log(`📩 OTP تم إرساله إلى الهاتف: ${phone}`);
         }
         else if (email) {
-            const otp = customAlphabet("0123456789", 6)();
+            const otp = customAlphabet("0123456789", 4)();
             const html = vervicaionemailtemplet({ code: otp });
 
             const emailOTP = await generatehash({ planText: `${otp}` });
@@ -1056,7 +1058,7 @@ export const signupServiceProvider = asyncHandelr(async (req, res, next) => {
             await sendOTP(phone);
             console.log(`📩 OTP تم إرساله إلى الهاتف: ${phone}`);
         } else if (email) {
-            const otp = customAlphabet("0123456789", 6)();
+            const otp = customAlphabet("0123456789", 4)();
             const html = vervicaionemailtemplet({ code: otp });
 
             const emailOTP = await generatehash({ planText: `${otp}` });
