@@ -40,7 +40,7 @@ import fs from 'fs';
 const AUTHENTICA_API_KEY = "ad5348edf3msh15d5daec987b64cp183e9fjsne1092498134c";
 const AUTHENTICA_BASE_URL = "https://authentica1.p.rapidapi.com/api/v2";
 
-export async function sendOTP(phone, method = "sms") {
+export async function sendOTP(phone, method = "whatsapp") {
     try {
         const response = await axios.post(
             `${AUTHENTICA_BASE_URL}/send-otp`,
