@@ -419,7 +419,7 @@ export const forgetPassword = asyncHandelr(async (req, res, next) => {
 
     if (email) {
         try {
-            const otp = customAlphabet("0123456789", 6)();
+            const otp = customAlphabet("0123456789", 4)();
             const html = vervicaionemailtemplet({ code: otp });
             const hashedOtp = await generatehash({ planText: otp });
             const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
