@@ -56,10 +56,10 @@ const restaurantSchema = new mongoose.Schema({
     websiteLink: { type: String, trim: true },
     discripion: { type: String, trim: true },
     phone: { type: String,  trim: true },
-    cuisine: { type: String, required: true, trim: true },
+    cuisine: { type: String, trim: true },
     rating: { type: Number, required: true, min: 0, max: 5 },
-    deliveryTime: { type: String, required: true, trim: true },
-    distance: { type: String, required: true, trim: true },
+    deliveryTime: { type: String, trim: true },
+    distance: { type: String, trim: true },
     image: imageSchema,
     menuImages: { type: [imageSchema], default: [] },// صورة المطعم
     isOpen: { type: Boolean, default: true },
