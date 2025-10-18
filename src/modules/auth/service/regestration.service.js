@@ -2111,9 +2111,9 @@ export const createRestaurant = asyncHandelr(async (req, res, next) => {
     }
 
     // ✅ تحقق من الحقول المطلوبة
-    if (!name || !cuisine || !deliveryTime || !distance) {
-        return next(new Error("جميع الحقول الأساسية مطلوبة", { cause: 400 }));
-    }
+    // if (!name || !cuisine || !deliveryTime || !distance) {
+    //     return next(new Error("جميع الحقول الأساسية مطلوبة", { cause: 400 }));
+    // }
 
     // رفع صورة المطعم
     let uploadedImage = null;
@@ -2138,13 +2138,13 @@ export const createRestaurant = asyncHandelr(async (req, res, next) => {
     // إنشاء المطعم
     const restaurant = await RestaurantModell.create({
         name,
-        cuisine,
+        // cuisine,
         phone,
         discripion,
         websiteLink,
         rating: rating || 0,
-        deliveryTime,
-        distance,
+        // deliveryTime,
+        // distance,
         image: uploadedImage,
         menuImages: uploadedMenuImages, 
         isOpen: isOpen ?? true,
