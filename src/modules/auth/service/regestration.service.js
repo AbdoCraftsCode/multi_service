@@ -2093,7 +2093,7 @@ export const deleteDoctor = asyncHandelr(async (req, res, next) => {
 
 
 export const createRestaurant = asyncHandelr(async (req, res, next) => {
-    let { name, discripion, phone, cuisine, websiteLink ,rating, deliveryTime, distance, isOpen } = req.body;
+    let { name, discripion, phone, websiteLink ,rating  , isOpen } = req.body;
 
     // 🧹 تنظيف القيم النصية
     const trimIfString = (val) => typeof val === "string" ? val.trim() : val;
@@ -2156,6 +2156,69 @@ export const createRestaurant = asyncHandelr(async (req, res, next) => {
         data: restaurant
     });
 });
+
+
+
+export const deleteRestaurant = asyncHandelr(async (req, res, next) => {
+    const { id } = req.params; // 📌 معرف المطعم من الـ URL
+
+    // ✅ التحقق من وجود المطعم
+    const restaurant = await RestaurantModell.findById(id);
+    if (!restaurant) {
+        return next(new Error("❌ المطعم غير موجود", { cause: 404 }));
+    }
+
+    // ✅ التحقق من صلاحية المستخدم
+    const user = await Usermodel.findById(req.user._id);
+    if (!user || user.accountType !== "Owner") {
+        return next(new Error("🚫 غير مصرح لك بحذف المطاعم", { cause: 403 }));
+    }
+
+    // ✅ التحقق أن صاحب المطعم هو نفسه المستخدم الحالي
+    if (restaurant.createdBy.toString() !== req.user._id.toString()) {
+        return next(new Error("🚫 لا يمكنك حذف مطعم لم تقم بإنشائه", { cause: 403 }));
+    }
+
+    // 🧹 حذف الصور من Cloudinary
+    try {
+        if (restaurant.image?.public_id) {
+            await cloud.uploader.destroy(restaurant.image.public_id);
+        }
+
+        if (restaurant.menuImages?.length > 0) {
+            for (const menuImage of restaurant.menuImages) {
+                if (menuImage.public_id) {
+                    await cloud.uploader.destroy(menuImage.public_id);
+                }
+            }
+        }
+    } catch (err) {
+        console.error("⚠️ فشل في حذف الصور من Cloudinary:", err.message);
+    }
+
+    // ✅ حذف المطعم من قاعدة البيانات
+    await RestaurantModell.findByIdAndDelete(id);
+
+    return res.status(200).json({
+        message: "✅ تم حذف المطعم بنجاح",
+        deletedId: id
+    });
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 export const getRestaurants = asyncHandelr(async (req, res, next) => {
     const { cuisine, name, isOpen, page = 1, limit = 10 } = req.query;
