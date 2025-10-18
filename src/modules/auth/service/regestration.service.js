@@ -2099,8 +2099,8 @@ export const createRestaurant = asyncHandelr(async (req, res, next) => {
     const trimIfString = (val) => typeof val === "string" ? val.trim() : val;
     name = trimIfString(name);
     // cuisine = trimIfString(cuisine);
-    deliveryTime = trimIfString(deliveryTime);
-    distance = trimIfString(distance);
+    // deliveryTime = trimIfString(deliveryTime);
+    // distance = trimIfString(distance);
     phone = trimIfString(phone);
     discripion = trimIfString(discripion);
     websiteLink = trimIfString(websiteLink);
