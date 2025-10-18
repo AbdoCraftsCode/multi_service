@@ -2159,6 +2159,133 @@ export const createRestaurant = asyncHandelr(async (req, res, next) => {
 
 
 
+
+
+export const updateRestaurant = asyncHandelr(async (req, res, next) => {
+    const { id } = req.params;
+    const userId = req.user._id;
+
+    // 🔍 التحقق من وجود المطعم وصلاحية المستخدم
+    const restaurant = await RestaurantModell.findOne({
+        _id: id,
+        createdBy: userId
+    });
+
+    if (!restaurant) {
+        return next(new Error("المطعم غير موجود أو ليس لديك صلاحية لتعديله", { cause: 404 }));
+    }
+
+    // 🟢 تجهيز البيانات المحدثة
+    let updatedData = { ...req.body };
+
+    // ✅ دالة آمنة لتحويل النص إلى JSON عند الحاجة
+    const tryParse = (val, fallback) => {
+        if (typeof val === "string") {
+            try {
+                return JSON.parse(val);
+            } catch {
+                return fallback;
+            }
+        }
+        return val ?? fallback;
+    };
+
+    // ✅ تنظيف النصوص
+    const trimIfString = (val) => typeof val === "string" ? val.trim() : val;
+    ["name", "discripion", "phone", "websiteLink"].forEach(field => {
+        if (updatedData[field]) updatedData[field] = trimIfString(updatedData[field]);
+    });
+
+    // ✅ دالة رفع الصور إلى Cloudinary
+    const uploadToCloud = async (file, folder) => {
+        const isPDF = file.mimetype === "application/pdf";
+        const uploaded = await cloud.uploader.upload(file.path, {
+            folder,
+            resource_type: isPDF ? "raw" : "auto",
+        });
+        return {
+            secure_url: uploaded.secure_url,
+            public_id: uploaded.public_id,
+        };
+    };
+
+    // 🟣 تحديث الصورة الرئيسية للمطعم (image)
+    if (req.files?.image?.[0]) {
+        // حذف الصورة القديمة إن وجدت
+        if (restaurant.image?.public_id) {
+            await cloud.uploader.destroy(restaurant.image.public_id);
+        }
+
+        const uploaded = await uploadToCloud(req.files.image[0], "restaurants/images");
+        updatedData.image = uploaded;
+    }
+
+    // 🟢 إدارة صور القائمة (menuImages)
+    if (req.body.removedMenuImages || req.files?.menuImages) {
+        let finalMenuImages = Array.isArray(restaurant.menuImages)
+            ? [...restaurant.menuImages]
+            : [];
+
+        // 🛑 1- حذف الصور المطلوبة
+        if (req.body.removedMenuImages) {
+            let removedMenuImages = [];
+            try {
+                removedMenuImages = JSON.parse(req.body.removedMenuImages);
+            } catch {
+                removedMenuImages = req.body.removedMenuImages;
+            }
+
+            if (Array.isArray(removedMenuImages)) {
+                for (const imgId of removedMenuImages) {
+                    const img = finalMenuImages.find(c => c.public_id === imgId);
+                    if (img) {
+                        await cloud.uploader.destroy(img.public_id);
+                        finalMenuImages = finalMenuImages.filter(c => c.public_id !== imgId);
+                    }
+                }
+            }
+        }
+
+        // 🟢 2- إضافة الصور الجديدة للقائمة
+        if (req.files?.menuImages) {
+            const files = Array.isArray(req.files.menuImages)
+                ? req.files.menuImages
+                : [req.files.menuImages];
+            for (const file of files) {
+                const uploaded = await uploadToCloud(file, "restaurants/menu");
+                finalMenuImages.push(uploaded);
+            }
+        }
+
+        updatedData.menuImages = finalMenuImages;
+    }
+
+    // 🟢 تحديث البيانات في قاعدة البيانات
+    const updatedRestaurant = await RestaurantModell.findOneAndUpdate(
+        { _id: id, createdBy: userId },
+        updatedData,
+        { new: true }
+    );
+
+    return res.status(200).json({
+        message: "تم تحديث بيانات المطعم بنجاح",
+        data: updatedRestaurant
+    });
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 export const deleteRestaurant = asyncHandelr(async (req, res, next) => {
     const { id } = req.params; // 📌 معرف المطعم من الـ URL
 
@@ -2332,6 +2459,52 @@ export const createProduct = asyncHandelr(async (req, res, next) => {
     return res.status(201).json({
         message: "تم إنشاء المنتج بنجاح",
         data: product
+    });
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+export const deleteProduct = asyncHandelr(async (req, res, next) => {
+    const { id } = req.params;
+    const userId = req.user._id;
+
+    // 🔍 البحث عن المنتج والتأكد من أن المستخدم هو المنشئ
+    const product = await ProductModell.findOne({ _id: id, createdBy: userId });
+
+    if (!product) {
+        return next(new Error("المنتج غير موجود أو ليس لديك صلاحية لحذفه", { cause: 404 }));
+    }
+
+    // 🧹 حذف الصور من Cloudinary
+    if (Array.isArray(product.images) && product.images.length > 0) {
+        for (const img of product.images) {
+            if (img.public_id) {
+                await cloud.uploader.destroy(img.public_id);
+            }
+        }
+    }
+
+    // 🗑️ حذف المنتج من قاعدة البيانات
+    await ProductModell.deleteOne({ _id: id, createdBy: userId });
+
+    return res.status(200).json({
+        message: "تم حذف المنتج بنجاح ✅"
     });
 });
 
