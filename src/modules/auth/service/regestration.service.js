@@ -2275,6 +2275,102 @@ export const updateRestaurant = asyncHandelr(async (req, res, next) => {
 
 
 
+export const updateProduct = asyncHandelr(async (req, res, next) => {
+    const { id } = req.params;
+    const userId = req.user._id;
+
+    // 🔍 التحقق من وجود المنتج وصلاحية المستخدم
+    const product = await ProductModell.findOne({ _id: id, createdBy: userId });
+    if (!product) {
+        return next(new Error("المنتج غير موجود أو ليس لديك صلاحية لتعديله", { cause: 404 }));
+    }
+
+    // 🟢 تجهيز البيانات المحدثة
+    let updatedData = { ...req.body };
+
+    // ✅ دالة تنظيف النصوص
+    const trimIfString = (val) => typeof val === "string" ? val.trim() : val;
+    ["name", "description"].forEach(field => {
+        if (updatedData[field]) updatedData[field] = trimIfString(updatedData[field]);
+    });
+
+    // ✅ دالة آمنة لتحويل النص إلى JSON عند الحاجة
+    const tryParse = (val, fallback) => {
+        if (typeof val === "string") {
+            try {
+                return JSON.parse(val);
+            } catch {
+                return fallback;
+            }
+        }
+        return val ?? fallback;
+    };
+
+    // ✅ دالة رفع الصور إلى Cloudinary
+    const uploadToCloud = async (file, folder) => {
+        const uploaded = await cloud.uploader.upload(file.path, {
+            folder,
+            resource_type: "auto",
+        });
+        return {
+            secure_url: uploaded.secure_url,
+            public_id: uploaded.public_id,
+        };
+    };
+
+    // 🟢 إدارة الصور (images)
+    if (req.body.removedImages || req.files?.images) {
+        let finalImages = Array.isArray(product.images)
+            ? [...product.images]
+            : [];
+
+        // 🛑 1- حذف الصور القديمة المطلوبة
+        if (req.body.removedImages) {
+            let removedImages = [];
+            try {
+                removedImages = JSON.parse(req.body.removedImages);
+            } catch {
+                removedImages = req.body.removedImages;
+            }
+
+            if (Array.isArray(removedImages)) {
+                for (const imgId of removedImages) {
+                    const img = finalImages.find(c => c.public_id === imgId);
+                    if (img) {
+                        await cloud.uploader.destroy(img.public_id);
+                        finalImages = finalImages.filter(c => c.public_id !== imgId);
+                    }
+                }
+            }
+        }
+
+        // 🟢 2- إضافة الصور الجديدة
+        if (req.files?.images) {
+            const files = Array.isArray(req.files.images)
+                ? req.files.images
+                : [req.files.images];
+
+            for (const file of files) {
+                const uploaded = await uploadToCloud(file, "restaurants/products");
+                finalImages.push(uploaded);
+            }
+        }
+
+        updatedData.images = finalImages;
+    }
+
+    // 🟢 تحديث البيانات في قاعدة البيانات
+    const updatedProduct = await ProductModell.findOneAndUpdate(
+        { _id: id, createdBy: userId },
+        updatedData,
+        { new: true }
+    );
+
+    return res.status(200).json({
+        message: "تم تحديث بيانات المنتج بنجاح ✅",
+        data: updatedProduct
+    });
+});
 
 
 
