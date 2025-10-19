@@ -2608,6 +2608,13 @@ export const deleteProduct = asyncHandelr(async (req, res, next) => {
 });
 
 
+
+
+
+
+
+
+
 // export const createOrder = asyncHandelr(async (req, res, next) => {
 //     let { restaurantId, contactNumber, websiteLink, additionalNotes, products } = req.body;
 
@@ -4727,6 +4734,42 @@ export const addProduct = asyncHandelr(async (req, res, next) => {
 
     return res.status(201).json({ message: "تم إضافة المنتج", data: product });
 });
+
+
+
+
+
+export const deleteProducts = asyncHandelr(async (req, res, next) => {
+    const { id } = req.params;
+
+    // 🔍 البحث عن المنتج والتأكد أن المستخدم هو المنشئ
+    const product = await ProductModelllll.findOne({ _id: id, createdBy: req.user._id });
+    if (!product) {
+        return next(new Error("المنتج غير موجود أو ليس لديك صلاحية لحذفه", { cause: 404 }));
+    }
+
+    // 🗑️ حذف الصور من Cloudinary لو موجودة
+    if (product.images && product.images.length > 0) {
+        for (const img of product.images) {
+            if (img.public_id) {
+                try {
+                    await cloud.uploader.destroy(img.public_id);
+                } catch (err) {
+                    console.warn("⚠️ فشل حذف صورة من Cloudinary:", img.public_id);
+                }
+            }
+        }
+    }
+
+    // 🗑️ حذف المنتج من قاعدة البيانات
+    await ProductModelllll.findByIdAndDelete(id);
+
+    return res.status(200).json({ message: "✅ تم حذف المنتج بنجاح" });
+});
+
+
+
+
 
 
 
