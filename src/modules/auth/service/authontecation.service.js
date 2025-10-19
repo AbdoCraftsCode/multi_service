@@ -1375,3 +1375,16 @@ export const getSettings = asyncHandelr(async (req, res, next) => {
     const settings = await AppSettingsSchema.findOne();
     return successresponse(res, "✅ تم جلب الإعدادات بنجاح", 200, { settings });
 });
+
+export const getAppSettingsAdmin = asyncHandelr(async (req, res, next) => {
+    // 🔍 جلب الإعدادات من قاعدة البيانات
+    const settings = await AppSettingsSchema.find();
+
+    // ✅ إذا ما فيش إعدادات، نرجع مصفوفة فاضية
+    if (!settings || settings.length === 0) {
+        return successresponse(res, "ℹ️ لا توجد إعدادات حالياً", 200, { settings: [] });
+    }
+
+    // ✅ إرجاع البيانات في شكل Array
+    return successresponse(res, "✅ تم جلب الإعدادات بنجاح", 200, { settings });
+});

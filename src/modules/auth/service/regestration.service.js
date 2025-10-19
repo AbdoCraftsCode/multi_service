@@ -4439,6 +4439,20 @@ export const createSupermarket = asyncHandelr(async (req, res, next) => {
 });
 
 
+export const deleteAppSettings = asyncHandelr(async (req, res, next) => {
+    // 🔍 البحث عن الإعدادات الحالية
+    const settings = await AppSettingsSchema.findOne();
+
+    // ⚠️ لو مفيش إعدادات
+    if (!settings) {
+        return next(new Error("❌ لا توجد إعدادات لحذفها", { cause: 404 }));
+    }
+
+    // 🗑️ حذف السجل
+    await AppSettingsSchema.deleteOne({ _id: settings._id });
+
+    return successresponse(res, "🗑️ تم حذف الإعدادات بنجاح", 200, { deleted: true });
+});
 
 
 
@@ -4567,6 +4581,70 @@ export const deleteSupermarket = asyncHandelr(async (req, res, next) => {
 
 
 
+export const updateSection = asyncHandelr(async (req, res, next) => {
+    const { id } = req.params;
+    let { name = {}, description = {} } = req.body;
+
+    // ✅ تحويل النصوص إلى JSON إذا كانت String
+    try {
+        if (typeof name === "string") name = JSON.parse(name);
+        if (typeof description === "string") description = JSON.parse(description);
+    } catch {
+        return next(new Error("خطأ في صيغة JSON للـ name أو description", { cause: 400 }));
+    }
+
+    // 🔍 البحث عن القسم والتأكد أن المستخدم هو المنشئ
+    const section = await SectionModel.findOne({ _id: id, createdBy: req.user._id });
+    if (!section) {
+        return next(new Error("القسم غير موجود أو ليس لديك صلاحية لتعديله", { cause: 404 }));
+    }
+
+    // ✅ التحديث
+    if (name && (name.en || name.fr || name.ar)) section.name = name;
+    if (description && (description.en || description.fr || description.ar)) section.description = description;
+
+    await section.save();
+
+    return res.status(200).json({
+        message: "✅ تم تحديث القسم بنجاح",
+        data: section
+    });
+});
+
+
+export const deleteSection = asyncHandelr(async (req, res, next) => {
+    const { id } = req.params;
+
+    // 🔍 البحث عن القسم
+    const section = await SectionModel.findOne({ _id: id, createdBy: req.user._id });
+    if (!section) {
+        return next(new Error("القسم غير موجود أو ليس لديك صلاحية لحذفه", { cause: 404 }));
+    }
+
+    // 🧹 حذف كل المنتجات التابعة للقسم
+    const products = await ProductModell.find({ section: id });
+
+    for (const product of products) {
+        // 🗑️ حذف صور المنتج من Cloudinary
+        if (Array.isArray(product.images)) {
+            for (const img of product.images) {
+                if (img.public_id) {
+                    await cloud.uploader.destroy(img.public_id);
+                }
+            }
+        }
+    }
+
+    // حذف المنتجات من قاعدة البيانات
+    await ProductModell.deleteMany({ section: id });
+
+    // 🔥 حذف القسم نفسه
+    await SectionModel.deleteOne({ _id: id });
+
+    return res.status(200).json({
+        message: "🗑️ تم حذف القسم وجميع المنتجات التابعة له بنجاح"
+    });
+});
 
 
 
@@ -6151,6 +6229,7 @@ import PaidServiceDrivers from "../../../DB/models/PaidServiceDrivers.js";
 import { ImageModel } from "../../../DB/models/imageSchema.model.js";
 import { ReportModel } from "../../../DB/models/reportSchema.js";
 import { verifyOTP } from "./authontecation.service.js";
+import AppSettingsSchema from "../../../DB/models/AppSettingsSchema.js";
 
 export const updateSubscription = asyncHandelr(async (req, res, next) => {
     const { userId } = req.params;
