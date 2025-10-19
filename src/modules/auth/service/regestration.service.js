@@ -4438,6 +4438,56 @@ export const createSupermarket = asyncHandelr(async (req, res, next) => {
     return res.status(201).json({ message: "تم إنشاء السوبر ماركت بنجاح", data: supermarket });
 });
 
+
+export const deleteSupermarket = asyncHandelr(async (req, res, next) => {
+    const { id } = req.params;
+
+    // ✅ تحقق من وجود السوبرماركت
+    const supermarket = await SupermarketModel.findById(id);
+    if (!supermarket) {
+        return next(new Error("السوبر ماركت غير موجود", { cause: 404 }));
+    }
+
+    // ✅ تحقق من صلاحية المستخدم
+    if (supermarket.createdBy.toString() !== req.user._id.toString() && req.user.accountType !== "Admin") {
+        return next(new Error("غير مسموح لك بحذف هذا السوبر ماركت", { cause: 403 }));
+    }
+
+    // 🧹 حذف الصور من Cloudinary
+    if (supermarket.image?.public_id) {
+        await cloud.uploader.destroy(supermarket.image.public_id);
+    }
+
+    if (supermarket.bannerImages?.length) {
+        for (const banner of supermarket.bannerImages) {
+            if (banner.public_id) {
+                await cloud.uploader.destroy(banner.public_id);
+            }
+        }
+    }
+
+    // 🗑️ حذف السوبرماركت من قاعدة البيانات
+    await SupermarketModel.findByIdAndDelete(id);
+
+    return res.status(200).json({
+        message: "تم حذف السوبر ماركت بنجاح ✅",
+    });
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 export const addSection = asyncHandelr(async (req, res, next) => {
     const { supermarketId } = req.params;
     const { name = {}, description = {} } = req.body;
