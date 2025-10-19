@@ -4739,6 +4739,71 @@ export const addProduct = asyncHandelr(async (req, res, next) => {
 
 
 
+
+
+export const updateProductsupermarket = asyncHandelr(async (req, res, next) => {
+    const { id } = req.params;
+    let { name = {}, description = {}, price, discount, stock } = req.body;
+
+    // ✅ تحويل النصوص إلى JSON لو كانت String
+    try {
+        if (typeof name === "string") name = JSON.parse(name);
+        if (typeof description === "string") description = JSON.parse(description);
+    } catch {
+        return next(new Error("خطأ في صيغة JSON للـ name أو description", { cause: 400 }));
+    }
+
+    // 🔍 البحث عن المنتج والتأكد من صلاحية المستخدم
+    const product = await ProductModelllll.findOne({ _id: id, createdBy: req.user._id });
+    if (!product) {
+        return next(new Error("المنتج غير موجود أو ليس لديك صلاحية لتعديله", { cause: 404 }));
+    }
+
+    // ✅ تحديث النصوص والمعلومات
+    if (name && (name.en || name.fr || name.ar)) product.name = name;
+    if (description && (description.en || description.fr || description.ar)) product.description = description;
+    if (price !== undefined) product.price = price;
+    if (discount !== undefined) product.discount = discount;
+    if (stock !== undefined) product.stock = stock;
+
+    // ✅ لو المستخدم رفع صور جديدة → نحذف القديمة ونرفع الجديدة
+    if (req.files?.images && req.files.images.length > 0) {
+        // 🗑️ حذف الصور القديمة من Cloudinary
+        for (const img of product.images) {
+            if (img.public_id) {
+                try {
+                    await cloud.uploader.destroy(img.public_id);
+                } catch (err) {
+                    console.warn("⚠️ فشل حذف صورة قديمة من Cloudinary:", img.public_id);
+                }
+            }
+        }
+
+        // 📤 رفع الصور الجديدة
+        const newImages = [];
+        for (const file of req.files.images) {
+            const uploaded = await cloud.uploader.upload(file.path, { folder: "supermarkets/products" });
+            newImages.push({ secure_url: uploaded.secure_url, public_id: uploaded.public_id });
+        }
+        product.images = newImages;
+    }
+
+    await product.save();
+
+    return res.status(200).json({
+        message: "✅ تم تحديث المنتج بنجاح",
+        data: product
+    });
+});
+
+
+
+
+
+
+
+
+
 export const deleteProducts = asyncHandelr(async (req, res, next) => {
     const { id } = req.params;
 
