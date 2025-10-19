@@ -4439,6 +4439,92 @@ export const createSupermarket = asyncHandelr(async (req, res, next) => {
 });
 
 
+
+
+
+export const updateSupermarket = asyncHandelr(async (req, res, next) => {
+    const { id } = req.params;
+    let { name, description, phone, pickup, isOpen, supermarketLocationLink } = req.body;
+
+    // ✅ Parse JSON Strings if موجودة كسلاسل
+    try {
+        if (typeof name === "string") name = JSON.parse(name);
+        if (typeof description === "string") description = JSON.parse(description);
+        if (typeof pickup === "string") pickup = JSON.parse(pickup);
+    } catch (err) {
+        return next(new Error("خطأ في صيغة JSON للـ name أو description أو pickup", { cause: 400 }));
+    }
+
+    // ✅ تحقق من وجود السوبرماركت
+    const supermarket = await SupermarketModel.findById(id);
+    if (!supermarket) {
+        return next(new Error("السوبر ماركت غير موجود", { cause: 404 }));
+    }
+
+    // ✅ تحقق من صلاحية المستخدم
+    if (supermarket.createdBy.toString() !== req.user._id.toString() && req.user.accountType !== "Admin") {
+        return next(new Error("غير مسموح لك بتعديل هذا السوبر ماركت", { cause: 403 }));
+    }
+
+    // ✅ تعديل القيم
+    if (name) supermarket.name = { ...supermarket.name, ...name };
+    if (description) supermarket.description = { ...supermarket.description, ...description };
+    if (phone) supermarket.phone = phone;
+    if (supermarketLocationLink) supermarket.supermarketLocationLink = supermarketLocationLink;
+    if (pickup) supermarket.pickup = pickup;
+    if (typeof isOpen !== "undefined") supermarket.isOpen = isOpen;
+
+    // ✅ تحديث صورة الـ cover
+    if (req.files?.image?.[0]) {
+        // حذف الصورة القديمة من Cloudinary
+        if (supermarket.image?.public_id) {
+            await cloud.uploader.destroy(supermarket.image.public_id);
+        }
+        const uploaded = await cloud.uploader.upload(req.files.image[0].path, { folder: "supermarkets/images" });
+        supermarket.image = { secure_url: uploaded.secure_url, public_id: uploaded.public_id };
+    }
+
+    // ✅ تحديث صور الـ banners (في حال تم رفع صور جديدة)
+    if (req.files?.bannerImages) {
+        // حذف الصور القديمة
+        if (supermarket.bannerImages?.length) {
+            for (const banner of supermarket.bannerImages) {
+                if (banner.public_id) await cloud.uploader.destroy(banner.public_id);
+            }
+        }
+        // رفع الجديدة
+        supermarket.bannerImages = [];
+        for (const file of req.files.bannerImages) {
+            const uploaded = await cloud.uploader.upload(file.path, { folder: "supermarkets/banners" });
+            supermarket.bannerImages.push({ secure_url: uploaded.secure_url, public_id: uploaded.public_id });
+        }
+    }
+
+    // 💾 حفظ التعديلات
+    await supermarket.save();
+
+    return res.status(200).json({
+        message: "تم تعديل السوبر ماركت بنجاح ✅",
+        data: supermarket
+    });
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 export const deleteSupermarket = asyncHandelr(async (req, res, next) => {
     const { id } = req.params;
 
