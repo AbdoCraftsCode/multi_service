@@ -233,7 +233,7 @@ routr.post(
 routr.patch(
     "/updateProductsupermarket/:id",
     authentication(),
-    uploadCloudFile(fileValidationTypes.image).fields([{ name: "images", maxCount: 1 }]),
+    uploadCloudFile(fileValidationTypes.image).fields([{ name: "images", maxCount: 10 }]),
     updateProductsupermarket
 );
 
