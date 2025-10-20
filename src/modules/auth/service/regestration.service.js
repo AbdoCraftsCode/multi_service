@@ -6422,6 +6422,39 @@ export const createSubscriptionPlan = async (req, res, next) => {
 };
 
 
+
+export const updateSubscriptionPlan = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { price, durationDays } = req.body;
+
+        // 🔍 تحقق من وجود الباقة
+        const plan = await SubscriptionPlan.findById(id);
+        if (!plan) {
+            return res.status(404).json({
+                success: false,
+                message: "❌ الباقة غير موجودة"
+            });
+        }
+
+        // ✅ تحديث القيم
+        if (price !== undefined) plan.price = price;
+        if (durationDays !== undefined) plan.durationDays = durationDays;
+
+        await plan.save();
+
+        return res.status(200).json({
+            success: true,
+            message: "✅ تم تحديث الباقة بنجاح",
+            data: plan
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+
+
 export const createPaidService = asyncHandelr(async (req, res, next) => {
     let { serviceName, subscriptionDuration, subscriptionPrice, phoneNumber, doctorId, ownerId } = req.body;
 
@@ -6511,6 +6544,29 @@ export const createPaidServiceDrivers = asyncHandelr(async (req, res, next) => {
 });
 
 
+export const deleteSubscriptionPlan = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+
+        // 🔍 تحقق من وجود الباقة
+        const plan = await SubscriptionPlan.findById(id);
+        if (!plan) {
+            return res.status(404).json({
+                success: false,
+                message: "❌ الباقة غير موجودة"
+            });
+        }
+
+        await plan.deleteOne();
+
+        return res.status(200).json({
+            success: true,
+            message: "✅ تم حذف الباقة بنجاح"
+        });
+    } catch (error) {
+        next(error);
+    }
+};
 
 
 
