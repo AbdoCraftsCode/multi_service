@@ -900,6 +900,10 @@ export const resetPassword = asyncHandelr(async (req, res, next) => {
 
 
 
+
+
+
+
 export const signupServiceProvider = asyncHandelr(async (req, res, next) => {
     const {
         fullName,
@@ -6398,6 +6402,9 @@ export const updateSubscription = asyncHandelr(async (req, res, next) => {
 });
 
 
+
+
+
 export const createSubscriptionPlan = async (req, res, next) => {
     try {
         const {  price, durationDays  } = req.body;
@@ -6498,6 +6505,27 @@ export const createPaidService = asyncHandelr(async (req, res, next) => {
         data: service
     });
 });
+
+
+
+export const getAllPaidServiceDrivers = asyncHandelr(async (req, res, next) => {
+    // 🟢 جلب كل الخدمات مع بيانات المستخدم المرتبطة
+    const services = await PaidServiceDrivers.find()
+        .populate({
+            path: "userId",
+            model: "User", // تأكد أن الاسم هو نفسه المستخدم في تعريف الموديل User
+            select: "fullName email phone"
+        })
+        .sort({ createdAt: -1 }); // الأحدث أولًا
+
+    return res.status(200).json({
+        success: true,
+        message: "✅ تم جلب جميع خدمات السائقين المدفوعة بنجاح",
+        count: services.length,
+        data: services
+    });
+});
+
 
 
 
@@ -6699,6 +6727,23 @@ export const createReport = asyncHandelr(async (req, res, next) => {
     const report = await ReportModel.create({ contact, message, name });
     return successresponse(res, "✅ تم إرسال البلاغ بنجاح", 201);
 });
+
+export const getAllPaidServices = asyncHandelr(async (req, res, next) => {
+    const services = await PaidService.find()
+        .populate({
+            path: "userId",
+            select: "fullName email phone"
+        })
+        .sort({ createdAt: -1 });
+
+    return res.status(200).json({
+        success: true,
+        message: "✅ تم جلب جميع الخدمات المدفوعة بنجاح",
+        count: services.length,
+        data: services
+    });
+});
+
 
 
 
