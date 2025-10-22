@@ -1252,7 +1252,7 @@ export const rideResponse = (socket) => {
 
 
     // 🧭 حدث عندما السائق يأخذ العميل (العميل دخل السيارة)
-    socket.on("getClient", async ({ rideId }) => {
+    socket.on("clientPicked", async ({ rideId }) => {
         try {
             const { data } = await authenticationSocket({ socket });
             if (!data.valid) return socket.emit("socketErrorResponse", data);
@@ -1267,7 +1267,7 @@ export const rideResponse = (socket) => {
             }
 
             // ✅ تحديث الحالة إلى "GET_CLIENT"
-            ride.status = "GET_CLIENT";
+            ride.status = "ongoing";
             await ride.save();
 
             // 🔍 جلب Socket العميل
@@ -1278,7 +1278,7 @@ export const rideResponse = (socket) => {
             if (clientSocket) {
                 clientSocket.emit("rideStatusUpdate", {
                     rideId,
-                    status: "GET_CLIENT",
+                    status: "ongoing",
                     message: "🚖 تم استقبالك في السيارة",
                 });
             }
@@ -1306,22 +1306,22 @@ export const rideResponse = (socket) => {
                     userId: ride.clientId,
                     title: "🚖 تم استقبالك في السيارة",
                     body: `${driver.fullName} استقبلك وبدأت الرحلة.`,
-                    type: "RIDE_GET_CLIENT",
+                    type: "RIDE_ongoing",
                     data: { rideId, driverId: driver._id },
                 });
             } catch (err) {
-                console.error("⚠️ فشل تخزين إشعار GET_CLIENT:", err);
+                console.error("⚠️ فشل تخزين إشعار ongoing:", err);
             }
 
             // ✅ تأكيد للسائق
             socket.emit("rideStatusUpdate", {
                 rideId,
-                status: "GET_CLIENT",
+                status: "ongoingT",
                 message: "✅ تم تحديث الحالة: العميل داخل السيارة",
             });
 
         } catch (err) {
-            console.error("❌ Error in getClient:", err);
+            console.error("❌ Error in ongoing:", err);
             socket.emit("socketErrorResponse", { message: "❌ خطأ أثناء تحديث حالة العميل" });
         }
     });
