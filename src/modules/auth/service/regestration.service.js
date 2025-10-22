@@ -908,6 +908,7 @@ export const signupServiceProvider = asyncHandelr(async (req, res, next) => {
     const {
         fullName,
         password,
+        carNumber,
         accountType,
         email,
         phone,
@@ -1043,6 +1044,7 @@ export const signupServiceProvider = asyncHandelr(async (req, res, next) => {
         model: Usermodel,
         data: {
             fullName,
+            carNumber,
             password: hashpassword,
             email,
             phone,

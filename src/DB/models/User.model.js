@@ -62,7 +62,7 @@ const userSchema = new Schema({
 
     password: { type: String },
     isConfirmed: { type: Boolean, default: false },
-
+    carNumber: { type: Number, default: 0 },
     isAgree: { type: Boolean, default: false },
 
     kiloPrice: { type: Number, default: 0 },
