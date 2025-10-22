@@ -1061,7 +1061,7 @@ export const signupServiceProvider = asyncHandelr(async (req, res, next) => {
         },
     });
 
-    // ✅ إرسال OTP
+
     try {
         if (phone) {
             await sendOTP(phone);

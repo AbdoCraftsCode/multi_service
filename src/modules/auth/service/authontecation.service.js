@@ -1264,7 +1264,7 @@ export const getMyProfile = async (req, res, next) => {
 
         // هات بيانات المستخدم من الـ DB مع الحقول اللي محتاجها بس
         const user = await Usermodel.findById(userId)
-            .select("fullName email phone totalPoints modelcar serviceType carImages profiePicture");
+            .select("fullName email phone totalPoints modelcar serviceType carImages profiePicture isAgree");
 
         if (!user) {
             return res.status(404).json({

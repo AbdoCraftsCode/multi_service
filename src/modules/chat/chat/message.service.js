@@ -1327,33 +1327,92 @@ export const rideResponse = (socket) => {
     });
 
     // ❌ إلغاء الرحلة من العميل
+    // ❌ إلغاء الرحلة (من العميل أو السائق)
     socket.on("cancelRide", async ({ rideId, cancellationReason }) => {
         try {
-            if (!cancellationReason) {
-                return socket.emit("socketErrorResponse", { message: "❌ لازم تبعت سبب الإلغاء" });
+            if (!cancellationReason || !cancellationReason.trim()) {
+                return socket.emit("socketErrorResponse", { message: "❌ لازم تكتب سبب الإلغاء" });
             }
 
-            await rideSchema.findByIdAndUpdate(rideId, {
-                status: "CANCELLED",
-                cancellationReason
-            });
+            const { data } = await authenticationSocket({ socket });
+            if (!data.valid) return socket.emit("socketErrorResponse", data);
 
+            const user = data.user;
             const io = getIo();
-            const ride = await rideSchema.findById(rideId);
-            const driverSocket = Array.from(io.sockets.sockets.values())
-                .find(s => s.userId?.toString() === ride.driverId.toString());
 
-            if (driverSocket) {
-                driverSocket.emit("rideCancelled", {
+            // 🧩 البحث عن الرحلة
+            const ride = await rideSchema.findById(rideId);
+            if (!ride) {
+                return socket.emit("socketErrorResponse", { message: "❌ الرحلة غير موجودة" });
+            }
+
+            // 🔄 تحديث حالة الرحلة
+            ride.status = "CANCELLED";
+            ride.cancellationReason = cancellationReason;
+            ride.cancelledBy = user._id;
+            await ride.save();
+
+            // 📍 تحديد الطرف الآخر (العميل ↔ السائق)
+            const isClient = ride.clientId.toString() === user._id.toString();
+            const targetId = isClient ? ride.driverId : ride.clientId;
+            const targetSocket = Array.from(io.sockets.sockets.values())
+                .find(s => s.userId?.toString() === targetId.toString());
+
+            // 📲 عنوان و نص الإشعار
+            const title = isClient
+                ? "🚫 العميل ألغى الرحلة"
+                : "🚫 السائق ألغى الرحلة";
+
+            const body = `${user.fullName} قام بإلغاء الرحلة. السبب: ${cancellationReason}`;
+
+            // 🔔 إشعار Socket للطرف الآخر
+            if (targetSocket) {
+                targetSocket.emit("rideCancelled", {
                     rideId,
+                    cancelledBy: user._id,
+                    cancelledByName: user.fullName,
                     cancellationReason
                 });
             }
 
-            socket.emit("rideStatusUpdate", { rideId, status: "CANCELLED", cancellationReason });
+            // ✅ إشعار للطرف المُلغي لتأكيد العملية
+            socket.emit("rideStatusUpdate", {
+                rideId,
+                status: "CANCELLED",
+                cancellationReason
+            });
+
+            // ✅ إرسال إشعار FCM للطرف الآخر
+            try {
+                const targetUser = await Usermodel.findById(targetId).select("fcmToken");
+                if (targetUser?.fcmToken) {
+                    await admin.messaging().send({
+                        notification: { title, body },
+                        data: { rideId: rideId.toString(), status: "CANCELLED" },
+                        token: targetUser.fcmToken
+                    });
+                }
+            } catch (err) {
+                console.error("❌ فشل إرسال إشعار FCM:", err);
+            }
+
+            // 💾 تخزين الإشعار في قاعدة البيانات
+            try {
+                await NotificationModell.create({
+                    userId: targetId,
+                    title,
+                    body,
+                    type: "RIDE_CANCELLED",
+                    data: { rideId, cancelledBy: user._id, reason: cancellationReason },
+                });
+            } catch (err) {
+                console.error("⚠️ فشل تخزين الإشعار:", err);
+            }
+
         } catch (err) {
-            console.error("Error in cancelRide:", err);
+            console.error("❌ Error in cancelRide:", err);
             socket.emit("socketErrorResponse", { message: "❌ خطأ أثناء إلغاء الرحلة" });
         }
+
     });
 };
