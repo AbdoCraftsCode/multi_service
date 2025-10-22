@@ -14,7 +14,7 @@ const rideSchema = new mongoose.Schema({
     price: Number,
     status: {
         type: String,
-        enum: ["PENDING", "DONE", "CANCELLED", "driver on the way", "ongoing finished", "ACCEPTED"],
+        enum: ["PENDING", "DONE", "CANCELLED", "driver on the way", "ongoing finished", "ACCEPTED","GET_CLIENT"],
         default: "PENDING"
     },
     cancellationReason: { type: String },

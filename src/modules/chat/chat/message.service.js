@@ -1250,6 +1250,85 @@ export const rideResponse = (socket) => {
         }
     });
 
+
+    // 🧭 حدث عندما السائق يأخذ العميل (العميل دخل السيارة)
+    socket.on("getClient", async ({ rideId }) => {
+        try {
+            const { data } = await authenticationSocket({ socket });
+            if (!data.valid) return socket.emit("socketErrorResponse", data);
+
+            const driver = data.user;
+            const io = getIo();
+
+            // 🔍 البحث عن الرحلة
+            const ride = await rideSchema.findById(rideId);
+            if (!ride) {
+                return socket.emit("socketErrorResponse", { message: "❌ الرحلة غير موجودة" });
+            }
+
+            // ✅ تحديث الحالة إلى "GET_CLIENT"
+            ride.status = "GET_CLIENT";
+            await ride.save();
+
+            // 🔍 جلب Socket العميل
+            const clientSocket = Array.from(io.sockets.sockets.values())
+                .find(s => s.userId?.toString() === ride.clientId.toString());
+
+            // 🔔 إشعار لحظي للعميل عبر Socket
+            if (clientSocket) {
+                clientSocket.emit("rideStatusUpdate", {
+                    rideId,
+                    status: "GET_CLIENT",
+                    message: "🚖 تم استقبالك في السيارة",
+                });
+            }
+
+            // ✅ إرسال إشعار FCM للعميل
+            try {
+                const client = await Usermodel.findById(ride.clientId).select("fcmToken");
+                if (client?.fcmToken) {
+                    await admin.messaging().send({
+                        notification: {
+                            title: "🚖 تم استقبالك في السيارة",
+                            body: `${driver.fullName} استقبلك في السيارة وبدأت الرحلة 🚗`,
+                        },
+                        data: { rideId: rideId.toString(), status: "GET_CLIENT" },
+                        token: client.fcmToken,
+                    });
+                }
+            } catch (error) {
+                console.error("❌ فشل إرسال إشعار FCM عند استلام العميل:", error);
+            }
+
+            // 💾 تخزين الإشعار في قاعدة البيانات
+            try {
+                await NotificationModell.create({
+                    userId: ride.clientId,
+                    title: "🚖 تم استقبالك في السيارة",
+                    body: `${driver.fullName} استقبلك وبدأت الرحلة.`,
+                    type: "RIDE_GET_CLIENT",
+                    data: { rideId, driverId: driver._id },
+                });
+            } catch (err) {
+                console.error("⚠️ فشل تخزين إشعار GET_CLIENT:", err);
+            }
+
+            // ✅ تأكيد للسائق
+            socket.emit("rideStatusUpdate", {
+                rideId,
+                status: "GET_CLIENT",
+                message: "✅ تم تحديث الحالة: العميل داخل السيارة",
+            });
+
+        } catch (err) {
+            console.error("❌ Error in getClient:", err);
+            socket.emit("socketErrorResponse", { message: "❌ خطأ أثناء تحديث حالة العميل" });
+        }
+    });
+
+
+
+
     // 🚖 بدء الرحلة
     socket.on("startRide", async ({ rideId }) => {
         try {
