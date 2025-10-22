@@ -6462,6 +6462,24 @@ export const updateSubscriptionPlan = async (req, res, next) => {
 
 
 
+
+
+export const getAllPaidServicesadmin = asyncHandelr(async (req, res, next) => {
+    const services = await PaidService.find()
+        .populate({
+            path: "userId",
+            select: "fullName email phone"
+        })
+        .sort({ createdAt: -1 });
+
+    return res.status(200).json({
+        success: true,
+        message: "✅ تم جلب جميع الخدمات المدفوعة بنجاح",
+        count: services.length,
+        data: services
+    });
+});
+
 export const createPaidService = asyncHandelr(async (req, res, next) => {
     let { serviceName, subscriptionDuration, subscriptionPrice, phoneNumber, doctorId, ownerId } = req.body;
 
