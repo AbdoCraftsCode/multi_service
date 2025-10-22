@@ -1029,8 +1029,8 @@ export const signupServiceProvider = asyncHandelr(async (req, res, next) => {
     }
 
     // مستندات إضافية (بدون Array)
-    if (req.files?.additionalDocuments?.[0]) {
-        uploadedFiles.additionalDocuments = await uploadToCloud(req.files.additionalDocuments[0], `users/additionalDocs`);
+    if (req.files?.Insurancedocuments?.[0]) {
+        uploadedFiles.Insurancedocuments = await uploadToCloud(req.files.Insurancedocuments[0], `users/additionalDocs`);
     }
 
     // صورة البروفايل

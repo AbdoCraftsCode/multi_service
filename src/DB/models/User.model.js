@@ -116,7 +116,7 @@ const userSchema = new Schema({
         secure_url: { type: String, default: null },
         public_id: { type: String, default: null }
     }],
-    additionalDocuments: {
+    Insurancedocuments: {
         secure_url: { type: String, default: null },
         public_id: { type: String, default: null }
     },

@@ -57,7 +57,7 @@ routr.post(
         { name: "profiePicture", maxCount: 1 },
         { name: "carLicenseImage", maxCount: 1 },
         { name: "carImages", maxCount: 10 },
-        { name: "additionalDocuments", maxCount: 1 }
+        { name: "Insurancedocuments", maxCount: 1 }
     ]),
     signupServiceProvider
 );
