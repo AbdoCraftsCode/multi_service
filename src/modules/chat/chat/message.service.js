@@ -751,6 +751,93 @@ export const orderStatusUpdate = (socket) => {
                 }
             });
 
+
+            socket.on("orderPicked", async ({ orderId }) => {
+                try {
+                    const { data } = await authenticationSocket({ socket });
+                    console.log("📌 orderPicked -> user data:", data);
+
+                    if (!data.valid)
+                        return socket.emit("socketErrorResponse", data);
+
+                    let order = await OrderModel.findById(orderId)
+                        .populate("createdBy restaurant");
+                    let type = "restaurant";
+
+                    if (!order) {
+                        order = await OrderModellllll.findById(orderId)
+                            .populate("supermarket user products.product");
+                        type = "supermarket";
+                    }
+
+                    console.log("🔎 Order found in orderPicked:", order);
+
+                    if (!order)
+                        return socket.emit("socketErrorResponse", { message: "❌ الطلب غير موجود" });
+
+                    if (order.assignedDriver?.toString() !== data.user._id.toString()) {
+                        console.log("⚠️ هذا الدليفري غير معين لهذا الطلب");
+                        return socket.emit("socketErrorResponse", { message: "❌ غير مصرح لك بأخذ الطلب" });
+                    }
+
+                    // ✅ تحديث حالة الطلب
+                    order.status = "picked_up";
+                    await order.save();
+                    console.log("✅ order updated to picked_up:", order._id);
+
+                    // 📩 إرسال إشعار للعميل
+                    const clientId = type === "restaurant" ? order.createdBy?._id : order.user?._id;
+                    const clientUser = await Usermodel.findById(clientId);
+                    console.log("👤 clientUser:", clientUser?.fullName, "fcmToken:", clientUser?.fcmToken);
+
+                    if (clientUser?.fcmToken) {
+                        try {
+                            const response = await admin.messaging().send({
+                                notification: {
+                                    title: "🍔 تم استلام طلبك من المطعم",
+                                    body: "قام الدليفري باستلام طلبك وهو في الطريق إليك 🚗"
+                                },
+                                data: {
+                                    orderId: order._id.toString(),
+                                    driverId: data.user._id.toString()
+                                },
+                                token: clientUser.fcmToken,
+                            });
+                            console.log("✅ إشعار FCM اتبعت:", response);
+
+                            // ✅ تخزين الإشعار في قاعدة البيانات
+                            const notif = await NotificationModell.create({
+                                order: order._id,
+                                user: clientId,
+                                driver: data.user._id,
+                                title: "🍔 تم استلام طلبك من المطعم",
+                                body: "قام الدليفري باستلام طلبك وهو في الطريق إليك 🚗",
+                                deviceToken: clientUser.fcmToken
+                            });
+                            console.log("✅ إشعار اتخزن في DB:", notif._id);
+
+                        } catch (err) {
+                            console.error("❌ خطأ أثناء إرسال إشعار orderPicked:", err);
+                        }
+                    } else {
+                        console.log("⚠️ العميل ملوش fcmToken");
+                    }
+
+                    // 🔁 إرسال رد للدليفري
+                    socket.emit("orderPickedConfirmed", {
+                        message: "✅ تم تأكيد استلام الطلب من البائع",
+                        orderId: order._id
+                    });
+
+                } catch (err) {
+                    console.error("❌ Error in orderPicked:", err);
+                    socket.emit("socketErrorResponse", { message: "❌ حدث خطأ أثناء تحديث حالة الطلب إلى مستلم" });
+                }
+            });
+
+
+
+
             socket.emit("orderStatusUpdated", {
                 message: "✅ تم تحديث حالة الطلب وإرسال إشعارات للدليفري",
                 order

@@ -128,7 +128,7 @@ const orderSchema = new mongoose.Schema({
 
     status: {
         type: String,
-        enum: ["pending", "accepted", "rejected", "created", "deleted", "delivered", "on_the_way"],
+        enum: ["pending", "accepted", "rejected", "created", "picked_up","deleted", "delivered", "on_the_way"],
         default: "created"
     },
 }, { timestamps: true });
