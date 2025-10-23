@@ -210,6 +210,22 @@ export const driverLocationUpdate = (socket) => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 import haversine from "haversine-distance";
 import { OrderModel } from "../../../DB/models/orderSchema.model.js";
 import { OrderModellllll } from "../../../DB/models/customItemSchemaorder.js";
@@ -750,6 +766,101 @@ export const orderStatusUpdate = (socket) => {
                     console.log("⚠️ السواق مش متصل:", driver.fullName);
                 }
             });
+
+
+
+            socket.on("cancelOrderByDriver", async ({ orderId, reason }) => {
+                try {
+                    const { data } = await authenticationSocket({ socket });
+                    console.log("📌 cancelOrderByDriver -> user data:", data);
+
+                    if (!data.valid)
+                        return socket.emit("socketErrorResponse", data);
+
+                    if (!orderId || !reason) {
+                        return socket.emit("socketErrorResponse", {
+                            message: "❌ مطلوب إرسال orderId وسبب الإلغاء"
+                        });
+                    }
+
+                    let order = await OrderModel.findById(orderId)
+                        .populate("createdBy restaurant");
+                    let type = "restaurant";
+
+                    if (!order) {
+                        order = await OrderModellllll.findById(orderId)
+                            .populate("supermarket user products.product");
+                        type = "supermarket";
+                    }
+
+                    console.log("🔎 Order found in cancelOrderByDriver:", order);
+
+                    if (!order)
+                        return socket.emit("socketErrorResponse", { message: "❌ الطلب غير موجود" });
+
+                    if (order.assignedDriver?.toString() !== data.user._id.toString()) {
+                        console.log("⚠️ هذا الدليفري غير معين لهذا الطلب");
+                        return socket.emit("socketErrorResponse", { message: "❌ غير مصرح لك بإلغاء هذا الطلب" });
+                    }
+
+                    // ✅ تحديث حالة الطلب وإزالة الدليفري
+                    order.status = "accepted";
+                    order.assignedDriver = null;
+                    await order.save();
+                    console.log("✅ order updated to accepted (بعد الإلغاء):", order._id);
+
+                    // 📩 إرسال إشعار للعميل
+                    const clientId = type === "restaurant" ? order.createdBy?._id : order.user?._id;
+                    const clientUser = await Usermodel.findById(clientId);
+                    console.log("👤 clientUser:", clientUser?.fullName, "fcmToken:", clientUser?.fcmToken);
+
+                    if (clientUser?.fcmToken) {
+                        try {
+                            const response = await admin.messaging().send({
+                                notification: {
+                                    title: "⚠️ تم إلغاء الطلب من الدليفري",
+                                    body: `قام الدليفري بإلغاء الطلب. السبب: ${reason}`
+                                },
+                                data: {
+                                    orderId: order._id.toString(),
+                                    driverId: data.user._id.toString(),
+                                    reason
+                                },
+                                token: clientUser.fcmToken,
+                            });
+                            console.log("✅ إشعار FCM اتبعت:", response);
+
+                            const notif = await NotificationModell.create({
+                                order: order._id,
+                                user: clientId,
+                                driver: data.user._id,
+                                title: "⚠️ تم إلغاء الطلب من الدليفري",
+                                body: `قام الدليفري بإلغاء الطلب. السبب: ${reason}`,
+                                deviceToken: clientUser.fcmToken
+                            });
+                            console.log("✅ إشعار اتخزن في DB:", notif._id);
+
+                        } catch (err) {
+                            console.error("❌ خطأ أثناء إرسال إشعار الإلغاء:", err);
+                        }
+                    } else {
+                        console.log("⚠️ العميل ملوش fcmToken");
+                    }
+
+                    // 🔁 إرسال رد للدليفري
+                    socket.emit("orderCanceledByDriver", {
+                        message: "✅ تم إلغاء الطلب وإرسال الإشعار للعميل",
+                        orderId: order._id
+                    });
+
+                } catch (err) {
+                    console.error("❌ Error in cancelOrderByDriver:", err);
+                    socket.emit("socketErrorResponse", {
+                        message: "❌ حدث خطأ أثناء إلغاء الطلب"
+                    });
+                }
+            });
+
 
 
             socket.on("orderPicked", async ({ orderId }) => {
