@@ -6009,7 +6009,6 @@ export const getAcceptedOrders = asyncHandelr(async (req, res, next) => {
 
 
 
-
 export const getUserOrders = async (req, res, next) => {
     try {
         const { userId, lang = "ar" } = req.query;
@@ -6018,36 +6017,36 @@ export const getUserOrders = async (req, res, next) => {
             return next(new Error("⚠️ يرجى إرسال userId", { cause: 400 }));
         }
 
-        // ✅ طلبات المطاعم (createdBy = userId)
+        // ✅ طلبات المطاعم
         const restaurantOrders = await OrderModel.find({ createdBy: userId })
             .populate("restaurant", "name")
-            .populate("createdBy", "name email");
+            .populate("assignedDriver", "fullName phone email profiePicture") // جلب بيانات الدليفري إن وجد
+            .populate("createdBy", "email");
 
-        // ✅ طلبات السوبرماركت (user = userId)
+        // ✅ طلبات السوبرماركت
         const supermarketOrders = await OrderModellllll.find({ user: userId })
             .populate("supermarket", "name")
-            .populate("user", "name email")
-            .populate("products.product", "name price images");
+            .populate("assignedDriver", "fullName phone email profiePicture")
+            .populate("user", "email")
+            .populate("products.product", "name price");
 
-        // ✅ دمج الطلبات في قائمة واحدة
+        // ✅ تجهيز الصيغة المطلوبة
         const allOrders = [
-            ...restaurantOrders.map(order => ({
-                ...order.toObject(),
-                type: "restaurant",
-                products: (order.products || []).map(p => ({
-                    name: typeof p.name === "object" ? (p.name[lang] || p.name["ar"]) : p.name,
-                    price: p.price,
-                    quantity: p.quantity
-                }))
-            })),
             ...supermarketOrders.map(order => ({
-                ...order.toObject(),
+                _id: order._id,
                 type: "supermarket",
                 supermarket: {
-                    ...order.supermarket,
+                    _id: order.supermarket?._id,
                     name: typeof order.supermarket?.name === "object"
-                        ? (order.supermarket?.name[lang] || order.supermarket?.name["ar"])
-                        : order.supermarket?.name
+                        ? {
+                            en: order.supermarket?.name.en || "",
+                            ar: order.supermarket?.name.ar || ""
+                        }
+                        : { en: order.supermarket?.name || "", ar: order.supermarket?.name || "" }
+                },
+                user: {
+                    _id: order.user?._id,
+                    email: order.user?.email
                 },
                 products: (order.products || []).map(p => ({
                     name: typeof p.product?.name === "object"
@@ -6056,13 +6055,92 @@ export const getUserOrders = async (req, res, next) => {
                     price: p.product?.price || 0,
                     quantity: p.quantity
                 })),
-                customItems: order.customItems || []
+                supermarketLocation: {
+                    link: order.supermarketLocationLink,
+                    latitude: order.supermarketLocationLink2?.latitude,
+                    longitude: order.supermarketLocationLink2?.longitude
+                },
+                userLocation: {
+                    link: order.userLocationLink,
+                    latitude: order.userLocationLink2?.latitude,
+                    longitude: order.userLocationLink2?.longitude
+                },
+                addressText: order.addressText,
+                totalPrice: Number(order.totalPrice),
+                deliveryPrice: Number(order.deliveryPrice),
+                finalPrice: Number(order.finalPrice),
+                contactPhone: order.contactPhone,
+                status: order.status,
+                invoice: order.Invoice || "notPaid",
+                driver:
+                    order.status === "on_the_way" || order.status === "delivered"
+                        ? order.assignedDriver
+                            ? {
+                                _id: order.assignedDriver._id,
+                                fullName: order.assignedDriver.fullName,
+                                phone: order.assignedDriver.phone,
+                                email: order.assignedDriver.email,
+                                profiePicture: order.assignedDriver.profiePicture
+                            }
+                            : null
+                        : null,
+                createdAt: order.createdAt,
+                updatedAt: order.updatedAt
+            })),
+
+            ...restaurantOrders.map(order => ({
+                _id: order._id,
+                type: "restaurant",
+                restaurant: {
+                    _id: order.restaurant?._id,
+                    name: order.restaurant?.name
+                },
+                products: (order.products || []).map(p => ({
+                    name: typeof p.name === "object"
+                        ? (p.name[lang] || p.name["ar"])
+                        : p.name,
+                    price: p.price,
+                    quantity: p.quantity
+                })),
+                contactNumber: order.contactNumber,
+                additionalNotes: order.additionalNotes,
+                addressText: order.addressText,
+                restaurantLocation: {
+                    link: order.restaurantLocation?.link,
+                    latitude: order.restaurantLocation?.latitude,
+                    longitude: order.restaurantLocation?.longitude
+                },
+                userLocation: {
+                    link: order.userLocation?.link,
+                    latitude: order.userLocation?.latitude,
+                    longitude: order.userLocation?.longitude
+                },
+                totalPrice: Number(order.totalPrice),
+                deliveryPrice: Number(order.deliveryPrice),
+                finalPrice: Number(order.finalPrice),
+                status: order.status,
+                invoice: order.Invoice || "notPaid",
+                driver:
+                    order.status === "on_the_way" || order.status === "delivered"
+                        ? order.assignedDriver
+                            ? {
+                                _id: order.assignedDriver._id,
+                                fullName: order.assignedDriver.fullName,
+                                phone: order.assignedDriver.phone,
+                                email: order.assignedDriver.email,
+                                profiePicture: order.assignedDriver.profiePicture
+                            }
+                            : null
+                        : null,
+                createdAt: order.createdAt,
+                updatedAt: order.updatedAt
             }))
         ];
 
-        // ✅ ترتيب الطلبات الأحدث أولاً
+        // ✅ ترتيب الأحدث أولاً
         allOrders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
+        // ✅ النتيجة النهائية
         res.status(200).json({
             success: true,
             message: "✅ تم جلب جميع الطلبات الخاصة بالمستخدم",
