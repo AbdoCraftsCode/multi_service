@@ -3198,6 +3198,59 @@ export const getRestaurantOrders = asyncHandelr(async (req, res, next) => {
      
 //     });
 // });
+// export const updateOrderStatus = asyncHandelr(async (req, res, next) => {
+//     const { orderId } = req.params;
+//     let { status, AccountType, Invoice } = req.body;
+
+//     // ✅ الحالات المسموح بها
+//     const allowedStatuses = ["accepted", "rejected", "pending", "deleted"];
+//     if (!allowedStatuses.includes(status)) {
+//         return res.status(400).json({
+//             success: false,
+//             message: "❌ الحالة المسموح بها فقط: accepted أو rejected أو pending أو deleted"
+//         });
+//     }
+
+//     // ✅ تجهيز صورة الفاتورة
+//     let InvoicePicture = {};
+//     if (req.files?.image) {
+//         const uploaded = await cloud.uploader.upload(req.files.image[0].path, {
+//             folder: "orders/invoices"
+//         });
+//         InvoicePicture = {
+//             secure_url: uploaded.secure_url,
+//             public_id: uploaded.public_id
+//         };
+//     }
+
+//     // ✅ تحديث الطلب
+//     const order = await OrderModel.findByIdAndUpdate(
+//         orderId,
+//         {
+//             status,
+//             AccountType: AccountType || "",
+//             Invoice: Invoice || "notPaid",
+//             ...(Object.keys(InvoicePicture).length > 0 && { InvoicePicture })
+//         },
+//         { new: true }
+//     );
+
+//     if (!order) {
+//         return res.status(404).json({
+//             success: false,
+//             message: "❌ الطلب غير موجود"
+//         });
+//     }
+
+//     res.status(200).json({
+//         success: true,
+//         message: `✅ تم تغيير حالة الطلب إلى ${status}`,
+//         data: order
+//     });
+// });
+
+
+
 export const updateOrderStatus = asyncHandelr(async (req, res, next) => {
     const { orderId } = req.params;
     let { status, AccountType, Invoice } = req.body;
@@ -3208,6 +3261,23 @@ export const updateOrderStatus = asyncHandelr(async (req, res, next) => {
         return res.status(400).json({
             success: false,
             message: "❌ الحالة المسموح بها فقط: accepted أو rejected أو pending أو deleted"
+        });
+    }
+
+    // ✅ جلب الطلب قبل التحديث للتحقق من حالته
+    const existingOrder = await OrderModel.findById(orderId);
+    if (!existingOrder) {
+        return res.status(404).json({
+            success: false,
+            message: "❌ الطلب غير موجود"
+        });
+    }
+
+    // 🚫 لو الطلب حالته accepted ومطلوب يتحذف → نمنع التعديل
+    if (existingOrder.status === "accepted" && status === "deleted") {
+        return res.status(400).json({
+            success: false,
+            message: "❌ تمت الموافقة على الطلب ولا يمكنك حذفه"
         });
     }
 
@@ -3235,19 +3305,14 @@ export const updateOrderStatus = asyncHandelr(async (req, res, next) => {
         { new: true }
     );
 
-    if (!order) {
-        return res.status(404).json({
-            success: false,
-            message: "❌ الطلب غير موجود"
-        });
-    }
-
     res.status(200).json({
         success: true,
         message: `✅ تم تغيير حالة الطلب إلى ${status}`,
         data: order
     });
 });
+
+
 
 
 export const sendotpphone = asyncHandelr(async (req, res, next) => {
@@ -5423,6 +5488,65 @@ export const getSupermarketNotifications = async (req, res, next) => {
 
 
 
+// export const updateOrderStatusSupermarket = async (req, res, next) => {
+//     try {
+//         const { orderId } = req.params;
+//         let { status, AccountType, Invoice } = req.body;
+
+//         // ✅ تحقق من إرسال الحالة
+//         if (!status) {
+//             return next(new Error("⚠️ الحالة مطلوبة", { cause: 400 }));
+//         }
+
+//         // ✅ الحالات المسموح بيها
+//         const allowedStatuses = ["pending", "accepted", "rejected", "in-progress", "delivered", "cancelled", "deleted"];
+//         if (!allowedStatuses.includes(status)) {
+//             return next(new Error("⚠️ الحالة غير صحيحة", { cause: 400 }));
+//         }
+
+//         // ✅ تجهيز صورة الفاتورة
+//         let InvoicePicture = {};
+//         if (req.files?.image) {
+//             const uploaded = await cloud.uploader.upload(req.files.image[0].path, {
+//                 folder: "supermarkets/invoices"
+//             });
+//             InvoicePicture = {
+//                 secure_url: uploaded.secure_url,
+//                 public_id: uploaded.public_id
+//             };
+//         }
+
+//         // ✅ تحديث الطلب
+//         const order = await OrderModellllll.findByIdAndUpdate(
+//             orderId,
+//             {
+//                 status,
+//                 AccountType: AccountType || "",
+//                 Invoice: Invoice || "notPaid",
+//                 ...(Object.keys(InvoicePicture).length > 0 && { InvoicePicture })
+//             },
+//             { new: true }
+//         )
+//             .populate("user", "fullName phone email")
+//             .populate("products.product", "name price images");
+
+//         if (!order) {
+//             return next(new Error("❌ لم يتم العثور على الطلب", { cause: 404 }));
+//         }
+
+//         return res.status(200).json({
+//             success: true,
+//             message: `✅ تم تحديث حالة الطلب إلى ${status}`,
+//             data: order
+//         });
+
+//     } catch (error) {
+//         next(error);
+//     }
+// };
+
+
+
 export const updateOrderStatusSupermarket = async (req, res, next) => {
     try {
         const { orderId } = req.params;
@@ -5437,6 +5561,17 @@ export const updateOrderStatusSupermarket = async (req, res, next) => {
         const allowedStatuses = ["pending", "accepted", "rejected", "in-progress", "delivered", "cancelled", "deleted"];
         if (!allowedStatuses.includes(status)) {
             return next(new Error("⚠️ الحالة غير صحيحة", { cause: 400 }));
+        }
+
+        // ✅ جلب الطلب الحالي
+        const existingOrder = await OrderModellllll.findById(orderId);
+        if (!existingOrder) {
+            return next(new Error("❌ لم يتم العثور على الطلب", { cause: 404 }));
+        }
+
+        // ✅ منع التعديل بعد الموافقة أو الحذف
+        if (["accepted", "deleted"].includes(existingOrder.status)) {
+            return next(new Error("⚠️ لا يمكن تعديل الطلب بعد الموافقة أو إذا كان محذوفًا", { cause: 400 }));
         }
 
         // ✅ تجهيز صورة الفاتورة
@@ -5465,10 +5600,6 @@ export const updateOrderStatusSupermarket = async (req, res, next) => {
             .populate("user", "fullName phone email")
             .populate("products.product", "name price images");
 
-        if (!order) {
-            return next(new Error("❌ لم يتم العثور على الطلب", { cause: 404 }));
-        }
-
         return res.status(200).json({
             success: true,
             message: `✅ تم تحديث حالة الطلب إلى ${status}`,
@@ -5479,6 +5610,16 @@ export const updateOrderStatusSupermarket = async (req, res, next) => {
         next(error);
     }
 };
+
+
+
+
+
+
+
+
+
+
 
 // export const getSupermarketOrders = async (req, res, next) => {
 //     try {
@@ -5865,6 +6006,78 @@ export const getAcceptedOrders = asyncHandelr(async (req, res, next) => {
         next(error);
     }
 });
+
+
+
+
+export const getUserOrders = async (req, res, next) => {
+    try {
+        const { userId, lang = "ar" } = req.query;
+
+        if (!userId) {
+            return next(new Error("⚠️ يرجى إرسال userId", { cause: 400 }));
+        }
+
+        // ✅ طلبات المطاعم (createdBy = userId)
+        const restaurantOrders = await OrderModel.find({ createdBy: userId })
+            .populate("restaurant", "name")
+            .populate("createdBy", "name email");
+
+        // ✅ طلبات السوبرماركت (user = userId)
+        const supermarketOrders = await OrderModellllll.find({ user: userId })
+            .populate("supermarket", "name")
+            .populate("user", "name email")
+            .populate("products.product", "name price images");
+
+        // ✅ دمج الطلبات في قائمة واحدة
+        const allOrders = [
+            ...restaurantOrders.map(order => ({
+                ...order.toObject(),
+                type: "restaurant",
+                products: (order.products || []).map(p => ({
+                    name: typeof p.name === "object" ? (p.name[lang] || p.name["ar"]) : p.name,
+                    price: p.price,
+                    quantity: p.quantity
+                }))
+            })),
+            ...supermarketOrders.map(order => ({
+                ...order.toObject(),
+                type: "supermarket",
+                supermarket: {
+                    ...order.supermarket,
+                    name: typeof order.supermarket?.name === "object"
+                        ? (order.supermarket?.name[lang] || order.supermarket?.name["ar"])
+                        : order.supermarket?.name
+                },
+                products: (order.products || []).map(p => ({
+                    name: typeof p.product?.name === "object"
+                        ? (p.product?.name[lang] || p.product?.name["ar"])
+                        : p.product?.name || "منتج غير معروف",
+                    price: p.product?.price || 0,
+                    quantity: p.quantity
+                })),
+                customItems: order.customItems || []
+            }))
+        ];
+
+        // ✅ ترتيب الطلبات الأحدث أولاً
+        allOrders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+        res.status(200).json({
+            success: true,
+            message: "✅ تم جلب جميع الطلبات الخاصة بالمستخدم",
+            count: allOrders.length,
+            data: allOrders
+        });
+
+    } catch (error) {
+        next(error);
+    }
+};
+
+
+
+
 
 
 
