@@ -3318,11 +3318,74 @@ export const getRestaurantOrders = asyncHandelr(async (req, res, next) => {
 
 
 
+// export const updateOrderStatus = asyncHandelr(async (req, res, next) => {
+//     const { orderId } = req.params;
+//     let { status, AccountType, Invoice } = req.body;
+
+//     // ✅ الحالات المسموح بها
+//     const allowedStatuses = ["accepted", "rejected", "pending", "deleted"];
+//     if (!allowedStatuses.includes(status)) {
+//         return res.status(400).json({
+//             success: false,
+//             message: "❌ الحالة المسموح بها فقط: accepted أو rejected أو pending أو deleted"
+//         });
+//     }
+
+//     // ✅ جلب الطلب قبل التحديث للتحقق من حالته
+//     const existingOrder = await OrderModel.findById(orderId);
+//     if (!existingOrder) {
+//         return res.status(404).json({
+//             success: false,
+//             message: "❌ الطلب غير موجود"
+//         });
+//     }
+
+//     // 🚫 لو الطلب حالته accepted ومطلوب يتحذف → نمنع التعديل
+//     if (existingOrder.status === "accepted" && status === "deleted") {
+//         return res.status(400).json({
+//             success: false,
+//             message: "❌ تمت الموافقة على الطلب ولا يمكنك حذفه"
+//         });
+//     }
+
+//     // ✅ تجهيز صورة الفاتورة
+//     let InvoicePicture = {};
+//     if (req.files?.image) {
+//         const uploaded = await cloud.uploader.upload(req.files.image[0].path, {
+//             folder: "orders/invoices"
+//         });
+//         InvoicePicture = {
+//             secure_url: uploaded.secure_url,
+//             public_id: uploaded.public_id
+//         };
+//     }
+
+//     // ✅ تحديث الطلب
+//     const order = await OrderModel.findByIdAndUpdate(
+//         orderId,
+//         {
+//             status,
+//             AccountType: AccountType || "",
+//             Invoice: Invoice || "notPaid",
+//             ...(Object.keys(InvoicePicture).length > 0 && { InvoicePicture })
+//         },
+//         { new: true }
+//     );
+
+//     res.status(200).json({
+//         success: true,
+//         message: `✅ تم تغيير حالة الطلب إلى ${status}`,
+//         data: order
+//     });
+// });
+
+
+
+
 export const updateOrderStatus = asyncHandelr(async (req, res, next) => {
     const { orderId } = req.params;
     let { status, AccountType, Invoice } = req.body;
 
-    // ✅ الحالات المسموح بها
     const allowedStatuses = ["accepted", "rejected", "pending", "deleted"];
     if (!allowedStatuses.includes(status)) {
         return res.status(400).json({
@@ -3331,8 +3394,11 @@ export const updateOrderStatus = asyncHandelr(async (req, res, next) => {
         });
     }
 
-    // ✅ جلب الطلب قبل التحديث للتحقق من حالته
-    const existingOrder = await OrderModel.findById(orderId);
+    // ✅ جلب الطلب قبل التحديث
+    const existingOrder = await OrderModel.findById(orderId)
+        .populate("createdBy", "name fcmToken")
+        .populate("restaurant", "name");
+
     if (!existingOrder) {
         return res.status(404).json({
             success: false,
@@ -3340,7 +3406,7 @@ export const updateOrderStatus = asyncHandelr(async (req, res, next) => {
         });
     }
 
-    // 🚫 لو الطلب حالته accepted ومطلوب يتحذف → نمنع التعديل
+    // 🚫 منع حذف الطلب بعد الموافقة عليه
     if (existingOrder.status === "accepted" && status === "deleted") {
         return res.status(400).json({
             success: false,
@@ -3348,7 +3414,7 @@ export const updateOrderStatus = asyncHandelr(async (req, res, next) => {
         });
     }
 
-    // ✅ تجهيز صورة الفاتورة
+    // ✅ تجهيز صورة الفاتورة (اختياري)
     let InvoicePicture = {};
     if (req.files?.image) {
         const uploaded = await cloud.uploader.upload(req.files.image[0].path, {
@@ -3360,7 +3426,7 @@ export const updateOrderStatus = asyncHandelr(async (req, res, next) => {
         };
     }
 
-    // ✅ تحديث الطلب
+    // ✅ تحديث الطلب في قاعدة البيانات
     const order = await OrderModel.findByIdAndUpdate(
         orderId,
         {
@@ -3372,12 +3438,50 @@ export const updateOrderStatus = asyncHandelr(async (req, res, next) => {
         { new: true }
     );
 
+    // 🔔 إرسال إشعار للعميل إذا تم قبول الطلب
+    if (status === "accepted" && existingOrder.createdBy?.fcmToken) {
+        try {
+            await admin.messaging().send({
+                notification: {
+                    title: "🍽️ تم قبول طلبك!",
+                    body: `المطعم وافق على طلبك وجاري التجهيز 🍲`,
+                },
+                data: {
+                    orderId: order._id.toString(),
+                    restaurantId: existingOrder.restaurant?._id?.toString() || "",
+                    status: "accepted"
+                },
+                token: existingOrder.createdBy.fcmToken,
+            });
+
+            // 🗂️ حفظ الإشعار في قاعدة البيانات
+            await NotificationModell.create({
+                user: existingOrder.createdBy._id,
+                order: order._id,
+                title: "🍽️ تم قبول طلبك",
+                body: `المطعم وافق على طلبك وجاري التجهيز`,
+                fcmToken: existingOrder.createdBy.fcmToken,
+            });
+        } catch (error) {
+            console.error("❌ فشل إرسال إشعار للعميل:", error);
+        }
+    }
+
     res.status(200).json({
         success: true,
         message: `✅ تم تغيير حالة الطلب إلى ${status}`,
         data: order
     });
 });
+
+
+
+
+
+
+
+
+
 
 
 
@@ -5614,69 +5718,69 @@ export const getSupermarketNotifications = async (req, res, next) => {
 
 
 
-export const updateOrderStatusSupermarket = async (req, res, next) => {
-    try {
-        const { orderId } = req.params;
-        let { status, AccountType, Invoice } = req.body;
+// export const updateOrderStatusSupermarket = async (req, res, next) => {
+//     try {
+//         const { orderId } = req.params;
+//         let { status, AccountType, Invoice } = req.body;
 
-        // ✅ تحقق من إرسال الحالة
-        if (!status) {
-            return next(new Error("⚠️ الحالة مطلوبة", { cause: 400 }));
-        }
+//         // ✅ تحقق من إرسال الحالة
+//         if (!status) {
+//             return next(new Error("⚠️ الحالة مطلوبة", { cause: 400 }));
+//         }
 
-        // ✅ الحالات المسموح بيها
-        const allowedStatuses = ["pending", "accepted", "rejected", "in-progress", "delivered", "cancelled", "deleted"];
-        if (!allowedStatuses.includes(status)) {
-            return next(new Error("⚠️ الحالة غير صحيحة", { cause: 400 }));
-        }
+//         // ✅ الحالات المسموح بيها
+//         const allowedStatuses = ["pending", "accepted", "rejected", "in-progress", "delivered", "cancelled", "deleted"];
+//         if (!allowedStatuses.includes(status)) {
+//             return next(new Error("⚠️ الحالة غير صحيحة", { cause: 400 }));
+//         }
 
-        // ✅ جلب الطلب الحالي
-        const existingOrder = await OrderModellllll.findById(orderId);
-        if (!existingOrder) {
-            return next(new Error("❌ لم يتم العثور على الطلب", { cause: 404 }));
-        }
+//         // ✅ جلب الطلب الحالي
+//         const existingOrder = await OrderModellllll.findById(orderId);
+//         if (!existingOrder) {
+//             return next(new Error("❌ لم يتم العثور على الطلب", { cause: 404 }));
+//         }
 
-        // ✅ منع التعديل بعد الموافقة أو الحذف
-        if (["accepted", "deleted"].includes(existingOrder.status)) {
-            return next(new Error("⚠️ لا يمكن تعديل الطلب بعد الموافقة أو إذا كان محذوفًا", { cause: 400 }));
-        }
+//         // ✅ منع التعديل بعد الموافقة أو الحذف
+//         if (["accepted", "deleted"].includes(existingOrder.status)) {
+//             return next(new Error("⚠️ لا يمكن تعديل الطلب بعد الموافقة أو إذا كان محذوفًا", { cause: 400 }));
+//         }
 
-        // ✅ تجهيز صورة الفاتورة
-        let InvoicePicture = {};
-        if (req.files?.image) {
-            const uploaded = await cloud.uploader.upload(req.files.image[0].path, {
-                folder: "supermarkets/invoices"
-            });
-            InvoicePicture = {
-                secure_url: uploaded.secure_url,
-                public_id: uploaded.public_id
-            };
-        }
+//         // ✅ تجهيز صورة الفاتورة
+//         let InvoicePicture = {};
+//         if (req.files?.image) {
+//             const uploaded = await cloud.uploader.upload(req.files.image[0].path, {
+//                 folder: "supermarkets/invoices"
+//             });
+//             InvoicePicture = {
+//                 secure_url: uploaded.secure_url,
+//                 public_id: uploaded.public_id
+//             };
+//         }
 
-        // ✅ تحديث الطلب
-        const order = await OrderModellllll.findByIdAndUpdate(
-            orderId,
-            {
-                status,
-                AccountType: AccountType || "",
-                Invoice: Invoice || "notPaid",
-                ...(Object.keys(InvoicePicture).length > 0 && { InvoicePicture })
-            },
-            { new: true }
-        )
-            .populate("user", "fullName phone email")
-            .populate("products.product", "name price images");
+//         // ✅ تحديث الطلب
+//         const order = await OrderModellllll.findByIdAndUpdate(
+//             orderId,
+//             {
+//                 status,
+//                 AccountType: AccountType || "",
+//                 Invoice: Invoice || "notPaid",
+//                 ...(Object.keys(InvoicePicture).length > 0 && { InvoicePicture })
+//             },
+//             { new: true }
+//         )
+//             .populate("user", "fullName phone email")
+//             .populate("products.product", "name price images");
 
-        return res.status(200).json({
-            success: true,
-            message: `✅ تم تحديث حالة الطلب إلى ${status}`,
-            data: order
-        });
+//         return res.status(200).json({
+//             success: true,
+//             message: `✅ تم تحديث حالة الطلب إلى ${status}`,
+//             data: order
+//         });
 
-    } catch (error) {
-        next(error);
-    }
-};
+//     } catch (error) {
+//         next(error);
+//     }
+// };
 
 
 
@@ -5761,6 +5865,122 @@ export const updateOrderStatusSupermarket = async (req, res, next) => {
 //         next(error);
 //     }
 // };
+
+
+export const updateOrderStatusSupermarket = async (req, res, next) => {
+    try {
+        const { orderId } = req.params;
+        let { status, AccountType, Invoice } = req.body;
+
+        // ✅ تحقق من إرسال الحالة
+        if (!status) {
+            return next(new Error("⚠️ الحالة مطلوبة", { cause: 400 }));
+        }
+
+        // ✅ الحالات المسموح بيها
+        const allowedStatuses = [
+            "pending",
+            "accepted",
+            "rejected",
+            "in-progress",
+            "delivered",
+            "cancelled",
+            "deleted"
+        ];
+        if (!allowedStatuses.includes(status)) {
+            return next(new Error("⚠️ الحالة غير صحيحة", { cause: 400 }));
+        }
+
+        // ✅ جلب الطلب الحالي مع بيانات العميل
+        const existingOrder = await OrderModellllll.findById(orderId)
+            .populate("user", "fullName fcmToken")
+            .populate("supermarket", "name");
+
+        if (!existingOrder) {
+            return next(new Error("❌ لم يتم العثور على الطلب", { cause: 404 }));
+        }
+
+        // ✅ منع التعديل بعد الموافقة أو الحذف
+        if (["accepted", "deleted"].includes(existingOrder.status)) {
+            return next(
+                new Error("⚠️ لا يمكن تعديل الطلب بعد الموافقة أو إذا كان محذوفًا", { cause: 400 })
+            );
+        }
+
+        // ✅ تجهيز صورة الفاتورة
+        let InvoicePicture = {};
+        if (req.files?.image) {
+            const uploaded = await cloud.uploader.upload(req.files.image[0].path, {
+                folder: "supermarkets/invoices"
+            });
+            InvoicePicture = {
+                secure_url: uploaded.secure_url,
+                public_id: uploaded.public_id
+            };
+        }
+
+        // ✅ تحديث الطلب
+        const order = await OrderModellllll.findByIdAndUpdate(
+            orderId,
+            {
+                status,
+                AccountType: AccountType || "",
+                Invoice: Invoice || "notPaid",
+                ...(Object.keys(InvoicePicture).length > 0 && { InvoicePicture })
+            },
+            { new: true }
+        )
+            .populate("user", "fullName phone email")
+            .populate("products.product", "name price images");
+
+        // 🔔 إرسال إشعار للعميل إذا تم قبول الطلب
+        if (status === "accepted" && existingOrder.user?.fcmToken) {
+            try {
+                await admin.messaging().send({
+                    notification: {
+                        title: "🛒 تم قبول طلبك!",
+                        body: `السوبرماركت وافق على طلبك وجاري التجهيز 📦`,
+                    },
+                    data: {
+                        orderId: order._id.toString(),
+                        supermarketId: existingOrder.supermarket?._id?.toString() || "",
+                        status: "accepted",
+                    },
+                    token: existingOrder.user.fcmToken,
+                });
+
+                // 🗂️ حفظ الإشعار في قاعدة البيانات
+                await NotificationModell.create({
+                    user: existingOrder.user._id,
+                    order: order._id,
+                    title: "🛒 تم قبول طلبك",
+                    body: `السوبرماركت وافق على طلبك وجاري التجهيز`,
+                    fcmToken: existingOrder.user.fcmToken,
+                });
+            } catch (error) {
+                console.error("❌ فشل إرسال إشعار للعميل:", error);
+            }
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: `✅ تم تحديث حالة الطلب إلى ${status}`,
+            data: order
+        });
+
+    } catch (error) {
+        next(error);
+    }
+};
+
+
+
+
+
+
+
+
+
 
 
 
@@ -6327,6 +6547,8 @@ export const getDriverOrdersStats = async (req, res, next) => {
         next(error);
     }
 };
+
+
 
 
 
