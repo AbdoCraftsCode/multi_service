@@ -1119,7 +1119,7 @@ export const signupServiceProvider = asyncHandelr(async (req, res, next) => {
 
 export const updateUser = asyncHandelr(async (req, res, next) => {
     const { id } = req.params; // 👈 بنجيب ال id من الرابط
-    const { fullName, password, email, phone, kiloPrice, isAgree } = req.body;
+    const { fullName, password, email, phone, kiloPrice, isAgree, totalPoints } = req.body;
 
     // ✅ تحقق من وجود المستخدم
     const user = await dbservice.findOne({
@@ -1172,6 +1172,7 @@ export const updateUser = asyncHandelr(async (req, res, next) => {
             ...(fullName && { fullName }),
             ...(kiloPrice && { kiloPrice }),
             ...(isAgree && { isAgree }),
+            ...(totalPoints && { totalPoints }),
             ...(hashpassword && { password: hashpassword }),
             ...(email && { email }),
             ...(phone && { phone }),
