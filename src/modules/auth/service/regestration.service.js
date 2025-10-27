@@ -1183,6 +1183,76 @@ export const updateUser = asyncHandelr(async (req, res, next) => {
 });
 
 
+// export const getDriverStats = asyncHandelr(async (req, res) => {
+//     const { driverId } = req.params;
+
+//     if (!driverId) {
+//         return res.status(400).json({
+//             success: false,
+//             message: "❌ لازم تبعت driverId",
+//         });
+//     }
+
+//     const finishedStatuses = ["ongoing finished", "DONE"];
+//     const now = new Date();
+
+//     // حساب بداية اليوم
+//     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+//     // حساب بداية الأسبوع (الاثنين)
+//     const startOfWeek = new Date(now);
+//     startOfWeek.setDate(now.getDate() - now.getDay() + 1);
+//     startOfWeek.setHours(0, 0, 0, 0);
+//     // حساب بداية الشهر
+//     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+//     // 🟢 جميع الرحلات المنتهية
+//     const finishedRides = await rideSchema.find({
+//         driverId,
+//         status: { $in: finishedStatuses },
+//     });
+
+//     // 🟠 الرحلات الملغاة
+//     const cancelledCount = await rideSchema.countDocuments({
+//         driverId,
+//         status: "CANCELLED",
+//     });
+
+//     // ✅ إجمالي الأرباح الكلي
+//     const totalEarnings = finishedRides.reduce((sum, ride) => sum + (ride.price || 0), 0);
+
+//     // ✅ الرحلات اليوم
+//     const todayRides = finishedRides.filter(ride => new Date(ride.createdAt) >= startOfDay);
+//     const todayCount = todayRides.length;
+//     const todayEarnings = todayRides.reduce((sum, ride) => sum + (ride.price || 0), 0);
+
+//     // ✅ الرحلات هذا الأسبوع
+//     const weekRides = finishedRides.filter(ride => new Date(ride.createdAt) >= startOfWeek);
+//     const weekCount = weekRides.length;
+//     const weekEarnings = weekRides.reduce((sum, ride) => sum + (ride.price || 0), 0);
+
+//     // ✅ الرحلات هذا الشهر
+//     const monthRides = finishedRides.filter(ride => new Date(ride.createdAt) >= startOfMonth);
+//     const monthCount = monthRides.length;
+//     const monthEarnings = monthRides.reduce((sum, ride) => sum + (ride.price || 0), 0);
+
+//     return res.status(200).json({
+//         success: true,
+//         message: "✅ تم جلب الإحصائيات بنجاح",
+//         data: {
+//             cancelledCount,
+//             finishedCount: finishedRides.length,
+//             totalEarnings,
+//             stats: {
+//                 today: { count: todayCount, earnings: todayEarnings },
+//                 week: { count: weekCount, earnings: weekEarnings },
+//                 month: { count: monthCount, earnings: monthEarnings },
+//             }
+//         }
+//     });
+// });
+
+
+
 export const getDriverStats = asyncHandelr(async (req, res) => {
     const { driverId } = req.params;
 
@@ -1235,6 +1305,15 @@ export const getDriverStats = asyncHandelr(async (req, res) => {
     const monthCount = monthRides.length;
     const monthEarnings = monthRides.reduce((sum, ride) => sum + (ride.price || 0), 0);
 
+    // 🕒 تجهيز قائمة الرحلات مع التاريخ والوقت
+    const rideHistory = finishedRides.map(ride => ({
+        _id: ride._id,
+        price: ride.price,
+        status: ride.status,
+        createdAt: ride.createdAt,
+        updatedAt: ride.updatedAt
+    }));
+
     return res.status(200).json({
         success: true,
         message: "✅ تم جلب الإحصائيات بنجاح",
@@ -1246,10 +1325,15 @@ export const getDriverStats = asyncHandelr(async (req, res) => {
                 today: { count: todayCount, earnings: todayEarnings },
                 week: { count: weekCount, earnings: weekEarnings },
                 month: { count: monthCount, earnings: monthEarnings },
-            }
+            },
+            rideHistory // 👈 إضافة التاريخ والوقت دون تغيير أي شيء آخر في الريسبونس
         }
     });
 });
+
+
+
+
 
 
 
@@ -7420,6 +7504,43 @@ export const deleteMyAccount = asyncHandelr(async (req, res, next) => {
 
     return successresponse(res, "✅ تم حذف الحساب بنجاح", 200);
 });
+
+export const deleteUserByAdmin = asyncHandelr(async (req, res, next) => {
+    const ownerId = req.user._id; // جاي من التوكن
+    const { userId } = req.params;
+
+    // ✅ جلب بيانات المالك
+    const owner = await Usermodel.findById(ownerId);
+    if (!owner) {
+        return next(new Error("❌ المستخدم غير موجود", { cause: 404 }));
+    }
+
+    // ✅ السماح فقط للـ Owner أو Admin بالحذف
+    if (!["Owner"].includes(owner.accountType)) {
+        return next(new Error("🚫 لا تملك صلاحية لحذف المستخدمين", { cause: 403 }));
+    }
+
+    // ✅ التحقق من وجود المستخدم المطلوب حذفه
+    const userToDelete = await Usermodel.findById(userId);
+    if (!userToDelete) {
+        return next(new Error("❌ المستخدم المطلوب غير موجود", { cause: 404 }));
+    }
+
+    // ⚠️ منع المالك أو الأدمن من حذف نفسه
+    if (userToDelete._id.toString() === ownerId.toString()) {
+        return next(new Error("⚠️ لا يمكنك حذف حسابك بنفسك", { cause: 400 }));
+    }
+
+    // ⚙️ حذف المستخدم
+    await Usermodel.findByIdAndDelete(userId);
+
+    // 💬 حذف بياناته المرتبطة (اختياري)
+    // await OrderModel.deleteMany({ user: userId });
+    // await PostModel.deleteMany({ author: userId });
+
+    return successresponse(res, `✅ تم حذف المستخدم (${userToDelete.fullName || "بدون اسم"}) بنجاح`, 200);
+});
+
 
 // ✅ جلب كل الصور
 export const getAllImages = asyncHandelr(async (req, res, next) => {

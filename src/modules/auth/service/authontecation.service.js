@@ -412,6 +412,23 @@ export const loginAdmin = asyncHandelr(async (req, res, next) => {
     return successresponse(res, "Done", 200, { access_Token, refreshToken, checkUser });
 });
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 // export const loginwithGmail = asyncHandelr(async (req, res, next) => {
 //     const { idToken } = req.body;
 //     const client = new OAuth2Client();
@@ -1283,6 +1300,8 @@ export const getMyProfile = async (req, res, next) => {
         next(error);
     }
 };
+
+
 
 
 
