@@ -5193,9 +5193,9 @@ export const getSupermarket = asyncHandelr(async (req, res, next) => {
     const { latitude, longitude, lang } = req.query;
 
     // ✅ تحقق من وجود إحداثيات
-    if (!latitude || !longitude) {
-        return next(new Error("الرجاء إدخال latitude و longitude في الاستعلام", { cause: 400 }));
-    }
+    // if (!latitude || !longitude) {
+    //     return next(new Error("الرجاء إدخال latitude و longitude في الاستعلام", { cause: 400 }));
+    // }
 
     const userLat = parseFloat(latitude);
     const userLon = parseFloat(longitude);
@@ -5244,6 +5244,10 @@ export const getSupermarket = asyncHandelr(async (req, res, next) => {
 
     return res.status(200).json({ data });
 });
+
+
+
+
 
 export const getSupermarketAdmin = asyncHandelr(async (req, res, next) => {
     const { latitude, longitude, lang } = req.query;
@@ -6525,6 +6529,115 @@ export const getUserOrders = async (req, res, next) => {
 };
 
 
+// export const getDriverOrdersStats = async (req, res, next) => {
+//     try {
+//         const { driverId } = req.params;
+
+//         if (!driverId) {
+//             return next(new Error("⚠️ يرجى إرسال driverId", { cause: 400 }));
+//         }
+
+//         // ✅ جلب طلبات المطاعم
+//         const restaurantOrders = await OrderModel.find({ assignedDriver: driverId })
+//             .populate("restaurant", "name")
+//             .populate("createdBy", "fullName email phone")
+//             .lean();
+
+//         // ✅ جلب طلبات السوبرماركت
+//         const supermarketOrders = await OrderModellllll.find({ assignedDriver: driverId })
+//             .populate("supermarket", "name")
+//             .populate("user", "fullName email phone")
+//             .populate("products.product", "name price")
+//             .lean();
+
+//         // ✅ تجهيز صيغة موحدة للنتائج
+//         const formattedRestaurantOrders = restaurantOrders.map(order => ({
+//             _id: order._id,
+//             type: "restaurant",
+//             restaurant: {
+//                 _id: order.restaurant?._id,
+//                 name: order.restaurant?.name || "مطعم غير معروف"
+//             },
+//             user: {
+//                 _id: order.createdBy?._id,
+//                 fullName: order.createdBy?.fullName,
+//                 email: order.createdBy?.email,
+//                 phone: order.createdBy?.phone
+//             },
+//             products: order.products.map(p => ({
+//                 name: p.name,
+//                 price: p.price,
+//                 quantity: p.quantity
+//             })),
+//             addressText: order.addressText,
+//             totalPrice: Number(order.totalPrice),
+//             deliveryPrice: Number(order.deliveryPrice || 0),
+//             finalPrice: Number(order.finalPrice || 0),
+//             status: order.status,
+//             Invoice: order.Invoice || "notPaid",
+//             createdAt: order.createdAt,
+//             updatedAt: order.updatedAt
+//         }));
+
+//         const formattedSupermarketOrders = supermarketOrders.map(order => ({
+//             _id: order._id,
+//             type: "supermarket",
+//             supermarket: {
+//                 _id: order.supermarket?._id,
+//                 name: order.supermarket?.name || "سوبرماركت غير معروف"
+//             },
+//             user: {
+//                 _id: order.user?._id,
+//                 fullName: order.user?.fullName,
+//                 email: order.user?.email,
+//                 phone: order.user?.phone
+//             },
+//             products: (order.products || []).map(p => ({
+//                 name: p.product?.name || "منتج غير معروف",
+//                 price: p.product?.price || 0,
+//                 quantity: p.quantity
+//             })),
+//             addressText: order.addressText,
+//             totalPrice: Number(order.totalPrice || 0),
+//             deliveryPrice: Number(order.deliveryPrice || 0),
+//             finalPrice: Number(order.finalPrice || 0),
+//             status: order.status,
+//             Invoice: order.Invoice || "notPaid",
+//             createdAt: order.createdAt,
+//             updatedAt: order.updatedAt
+//         }));
+
+//         // ✅ دمج وترتيب النتائج حسب الأحدث
+//         const allOrders = [...formattedRestaurantOrders, ...formattedSupermarketOrders]
+//             .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+//         // ✅ إحصائيات سريعة (اختياري)
+//         const acceptedCount = allOrders.filter(o => o.status === "accepted").length;
+//         const deliveredCount = allOrders.filter(o => o.status === "delivered").length;
+//         const cancelledCount = allOrders.filter(o => o.status === "cancelled").length;
+//         const totalEarnings = allOrders.reduce((sum, o) => sum + (o.finalPrice || o.totalPrice || 0), 0);
+
+//         // ✅ النتيجة النهائية
+//         return res.status(200).json({
+//             success: true,
+//             message: "✅ تم جلب جميع الطلبات الخاصة بالدليفري بنجاح",
+//             stats: {
+//                 acceptedCount,
+//                 deliveredCount,
+//                 cancelledCount,
+//                 totalEarnings,
+//                 totalOrders: allOrders.length
+//             },
+//             data: allOrders
+//         });
+
+//     } catch (error) {
+//         next(error);
+//     }
+// };
+
+
+
 export const getDriverOrdersStats = async (req, res, next) => {
     try {
         const { driverId } = req.params;
@@ -6571,8 +6684,8 @@ export const getDriverOrdersStats = async (req, res, next) => {
             finalPrice: Number(order.finalPrice || 0),
             status: order.status,
             Invoice: order.Invoice || "notPaid",
-            createdAt: order.createdAt,
-            updatedAt: order.updatedAt
+            createdAt: order.createdAt, // ✅ التاريخ
+            updatedAt: order.updatedAt  // ✅ الوقت
         }));
 
         const formattedSupermarketOrders = supermarketOrders.map(order => ({
@@ -6599,15 +6712,15 @@ export const getDriverOrdersStats = async (req, res, next) => {
             finalPrice: Number(order.finalPrice || 0),
             status: order.status,
             Invoice: order.Invoice || "notPaid",
-            createdAt: order.createdAt,
-            updatedAt: order.updatedAt
+            createdAt: order.createdAt, // ✅ التاريخ
+            updatedAt: order.updatedAt  // ✅ الوقت
         }));
 
         // ✅ دمج وترتيب النتائج حسب الأحدث
         const allOrders = [...formattedRestaurantOrders, ...formattedSupermarketOrders]
             .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
-        // ✅ إحصائيات سريعة (اختياري)
+        // ✅ إحصائيات
         const acceptedCount = allOrders.filter(o => o.status === "accepted").length;
         const deliveredCount = allOrders.filter(o => o.status === "delivered").length;
         const cancelledCount = allOrders.filter(o => o.status === "cancelled").length;
@@ -6624,7 +6737,7 @@ export const getDriverOrdersStats = async (req, res, next) => {
                 totalEarnings,
                 totalOrders: allOrders.length
             },
-            data: allOrders
+            data: allOrders // 👈 تحتوي الآن على createdAt و updatedAt
         });
 
     } catch (error) {
