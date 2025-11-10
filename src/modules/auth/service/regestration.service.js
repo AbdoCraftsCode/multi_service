@@ -1872,9 +1872,9 @@ export const getDoctors = asyncHandelr(async (req, res, next) => {
 export const getOwnerRestaurants = asyncHandelr(async (req, res, next) => {
     // لازم يكون Owner
     const user = await Usermodel.findById(req.user._id);
-    if (!user || user.accountType !== "Owner") {
-        return next(new Error("غير مسموح لك، يجب أن يكون حسابك Owner", { cause: 403 }));
-    }
+    // if (!user || user.accountType !== "Owner") {
+    //     return next(new Error("غير مسموح لك، يجب أن يكون حسابك Owner", { cause: 403 }));
+    // }
 
     const restaurants = await RestaurantModell.find({ createdBy: req.user._id })
         .sort({ createdAt: -1 })
@@ -1886,6 +1886,10 @@ export const getOwnerRestaurants = asyncHandelr(async (req, res, next) => {
         data: restaurants
     });
 });
+
+
+
+
 
 export const getManagerRestaurants = asyncHandelr(async (req, res, next) => {
     const restaurant = await RestaurantModell.findOne({
@@ -7632,6 +7636,8 @@ export const deleteUserByAdmin = asyncHandelr(async (req, res, next) => {
     if (!["Owner"].includes(owner.accountType)) {
         return next(new Error("🚫 لا تملك صلاحية لحذف المستخدمين", { cause: 403 }));
     }
+
+    
 
     // ✅ التحقق من وجود المستخدم المطلوب حذفه
     const userToDelete = await Usermodel.findById(userId);
