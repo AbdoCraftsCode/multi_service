@@ -2274,10 +2274,10 @@ export const createRestaurant = asyncHandelr(async (req, res, next) => {
     discripion = trimIfString(discripion);
     websiteLink = trimIfString(websiteLink);
     // ✅ تحقق من صلاحية المستخدم
-    const user = await Usermodel.findById(req.user._id);
-    if (!user || user.accountType !== "Owner") {
-        return next(new Error("غير مسموح لك بإنشاء مطعم، يجب أن يكون حسابك Owner", { cause: 403 }));
-    }
+    // const user = await Usermodel.findById(req.user._id);
+    // if (!user || user.accountType !== "Owner") {
+    //     return next(new Error("غير مسموح لك بإنشاء مطعم، يجب أن يكون حسابك Owner", { cause: 403 }));
+    // }
 
     // ✅ تحقق من الحقول المطلوبة
     // if (!name || !cuisine || !deliveryTime || !distance) {
