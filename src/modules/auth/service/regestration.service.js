@@ -1911,6 +1911,10 @@ export const getManagerRestaurants = asyncHandelr(async (req, res, next) => {
     });
 });
 
+
+
+
+
 export const getAccessibleSupermarket = asyncHandelr(async (req, res, next) => {
     const { lang = "ar" } = req.query; // اللغة الافتراضية عربي
 
@@ -2560,10 +2564,10 @@ export const deleteRestaurant = asyncHandelr(async (req, res, next) => {
     }
 
     // ✅ التحقق من صلاحية المستخدم
-    const user = await Usermodel.findById(req.user._id);
-    if (!user || user.accountType !== "Owner") {
-        return next(new Error("🚫 غير مصرح لك بحذف المطاعم", { cause: 403 }));
-    }
+    // const user = await Usermodel.findById(req.user._id);
+    // if (!user || user.accountType !== "Owner") {
+    //     return next(new Error("🚫 غير مصرح لك بحذف المطاعم", { cause: 403 }));
+    // }
 
     // ✅ التحقق أن صاحب المطعم هو نفسه المستخدم الحالي
     if (restaurant.createdBy.toString() !== req.user._id.toString()) {
