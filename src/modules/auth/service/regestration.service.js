@@ -32,8 +32,7 @@ import rideSchema from "../../../DB/models/rideSchema.js";
 import { ProductModelllll, SectionModel, SupermarketModel } from "../../../DB/models/supermarket.js";
 import { OrderModellllll } from "../../../DB/models/customItemSchemaorder.js";
 import { nanoid, customAlphabet } from "nanoid";
-// const AUTHENTICA_API_KEY = process.env.AUTHENTICA_API_KEY || "$2y$10$q3BAdOAyWapl3B9YtEVXK.DHmJf/yaOqF4U.MpbBmR8bwjSxm4A6W";
-// const AUTHENTICA_OTP_URL = "https://api.authentica.sa/api/v1/send-otp";
+
 import fs from 'fs';
 
 
@@ -6930,18 +6929,47 @@ export const createOrder = asyncHandelr(async (req, res, next) => {
     // ✅ حساب سعر التوصيل
     const deliveryPrice = Math.ceil(distanceKm * 5); // تقريب للأعلى
 
-    // ✅ المجموع الكلي
-    const finalPrice = Number(totalPrice) + deliveryPrice;
+    // 🛠️ معالجة المنتجات
+    let productsList = [];
+    let subTotal = 0;
+
+    for (const item of products) {
+        const productId = item.product || item._id || item;
+        const product = await ProductModell.findById(productId);
+        if (!product) {
+            return next(new Error(`المنتج غير موجود: ${productId}`, { cause: 404 }));
+        }
+
+        // حساب السعر بعد الخصم (إذا وجد)
+        const price = product.price;
+        const discount = product.discount || 0;
+        const finalProductPrice = price - (price * discount / 100);
+
+        const quantity = item.quantity || 1;
+        
+        productsList.push({
+            product: product._id,
+            name: product.name,
+            price: price,
+            quantity: quantity,
+            discount: discount
+        });
+
+        subTotal += finalProductPrice * quantity;
+    }
+
+    // ✅ المجموع الكلي (السعر المحسوب + التوصيل)
+    const finalPrice = subTotal + deliveryPrice;
 
     // 🛠 إنشاء الأوردر مع الأسعار
     const order = await OrderModel.create({
         restaurant: restaurant._id,
         contactNumber: contactNumber || restaurant.phone,
         additionalNotes,
-        products,
+        products: productsList,
         addressText,
         createdBy: req.user._id,
-        totalPrice, // السعر الأساسي
+        totalPrice: subTotal.toString(), // السعر المحسوب للمنتجات
 
         deliveryPrice: deliveryPrice.toString(),
         finalPrice: finalPrice.toString(),
