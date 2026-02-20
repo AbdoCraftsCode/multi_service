@@ -1407,3 +1407,32 @@ export const getAppSettingsAdmin = asyncHandelr(async (req, res, next) => {
     // ✅ إرجاع البيانات في شكل Array
     return successresponse(res, "✅ تم جلب الإعدادات بنجاح", 200, { settings });
 });
+
+
+export const checkVersion = asyncHandelr(async (req, res, next) => {
+    const { app_type } = req.query;
+    
+    const minVersion = process.env.MINIMUM_VERSION;
+    const currentVersion = process.env.CURRENT_VERSION;
+    const showSubscriptions = process.env.SHOW_SUPSCRIPTIONS === 'true' || process.env.SHOW_SUPSCRIPTIONS === true;
+
+    if (app_type === "customer") {
+        return successresponse(res, "Version info", 200, {
+            MINIMUM_VERSION: minVersion,
+            CURRENT_VERSION: currentVersion,
+            SHOW_SUPSCRIPTIONS: showSubscriptions
+        });
+    }
+
+    if (app_type === "driver" || app_type === "manager") {
+        return successresponse(res, "Version info", 200, {
+            MINIMUM_VERSION: minVersion,
+            CURRENT_VERSION: currentVersion
+        });
+    }
+
+    return successresponse(res, "Version info", 200, {
+        MINIMUM_VERSION: minVersion,
+        CURRENT_VERSION: currentVersion
+    });
+});
