@@ -1412,11 +1412,12 @@ export const getAppSettingsAdmin = asyncHandelr(async (req, res, next) => {
 export const checkVersion = asyncHandelr(async (req, res, next) => {
     const { app_type } = req.query;
     
-    const minVersion = process.env.MINIMUM_VERSION;
-    const currentVersion = process.env.CURRENT_VERSION;
+    let minVersion, currentVersion;
     const showSubscriptions = process.env.SHOW_SUPSCRIPTIONS === 'true' || process.env.SHOW_SUPSCRIPTIONS === true;
 
     if (app_type === "customer") {
+        minVersion = process.env.MINIMUM_VERSION_CUSTOMER;
+        currentVersion = process.env.CURRENT_VERSION_CUSTOMER;
         return successresponse(res, "Version info", 200, {
             MINIMUM_VERSION: minVersion,
             CURRENT_VERSION: currentVersion,
@@ -1424,15 +1425,28 @@ export const checkVersion = asyncHandelr(async (req, res, next) => {
         });
     }
 
-    if (app_type === "driver" || app_type === "manager") {
+    if (app_type === "driver") {
+        minVersion = process.env.MINIMUM_VERSION_DRIVER;
+        currentVersion = process.env.CURRENT_VERSION_DRIVER;
         return successresponse(res, "Version info", 200, {
             MINIMUM_VERSION: minVersion,
             CURRENT_VERSION: currentVersion
         });
     }
 
+    if (app_type === "manager") {
+        minVersion = process.env.MINIMUM_VERSION_MANAGER;
+        currentVersion = process.env.CURRENT_VERSION_MANAGER;
+        return successresponse(res, "Version info", 200, {
+            MINIMUM_VERSION: minVersion,
+            CURRENT_VERSION: currentVersion
+        });
+    }
+
+    // Default or fallback (customer behavior)
     return successresponse(res, "Version info", 200, {
-        MINIMUM_VERSION: minVersion,
-        CURRENT_VERSION: currentVersion
+        MINIMUM_VERSION: process.env.MINIMUM_VERSION_CUSTOMER,
+        CURRENT_VERSION: process.env.CURRENT_VERSION_CUSTOMER,
+        SHOW_SUPSCRIPTIONS: showSubscriptions
     });
 });
